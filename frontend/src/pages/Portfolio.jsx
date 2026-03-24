@@ -297,6 +297,7 @@ function PositionsTable({ positions, onAddToWatchlist, onSelect, sortConfig, onS
                             <SortableHeader label="Unr. Gain $" sortKey="unrealized_gain_abs" sortConfig={sortConfig} onSort={onSort} align="right" />
                             <SortableHeader label="Market Value" sortKey="market_value" sortConfig={sortConfig} onSort={onSort} align="right" />
                             <SortableHeader label="Shares" sortKey="quantity" sortConfig={sortConfig} onSort={onSort} align="right" />
+                            <SortableHeader label="Dividends" sortKey="total_dividends" sortConfig={sortConfig} onSort={onSort} align="right" />
                             <th className="px-4 py-4 text-right text-[10px] font-bold text-gray-500 dark:text-slate-500 uppercase tracking-[0.22em]">Actions</th>
                         </tr>
                     </thead>
@@ -366,6 +367,9 @@ function PositionRow({ pos, onAddToWatchlist, onClick }) {
             <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-600 dark:text-slate-400">
                 {pos.quantity.toFixed(4)}
             </td>
+            <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                ${pos.total_dividends.toFixed(2)}
+            </td>
             <td className="px-4 py-4 whitespace-nowrap text-right">
                 <button
                     onClick={(e) => { e.stopPropagation(); onAddToWatchlist(pos); }}
@@ -397,7 +401,7 @@ function PeriodSelector({ current, onSelect, loading }) {
                     className={`px-3 py-1.5 text-xs rounded-lg font-bold transition-all ${current === p.value
                         ? 'bg-white dark:bg-[#1a2330] text-blue-600 dark:text-slate-100 shadow-sm'
                         : 'text-gray-500 dark:text-slate-500 hover:text-gray-900 dark:hover:text-slate-200'
-                    }`}
+                        }`}
                 >
                     {p.label}
                 </button>

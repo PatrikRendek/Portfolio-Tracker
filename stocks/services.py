@@ -8,6 +8,7 @@ from typing import Optional, List, Any
 from datetime import timedelta
 
 import requests
+from decimal import Decimal
 import pandas as pd
 import yfinance as yf
 from django.conf import settings
@@ -285,7 +286,6 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
             has_vol = any(kw in row_vals for kw in volume_keywords)
             has_sym = any(any(kw in val for kw in symbol_keywords) for val in row_vals)
 
-            # Additional check to exclude "Closed Positions" sheet from being treated as "Open"
             closed_keywords = [
                 "close price",
                 "close time",
@@ -297,11 +297,9 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
             is_closed = any(
                 any(kw in val for kw in closed_keywords) for val in row_vals
             )
-
-            # Sheet name hints
             sn_lower = sheet_name.lower()
-            is_closed_sheet = (
-                "closed" in sn_lower or "uzatvoren" in sn_lower or "uzavret" in sn_lower
+            is_closed_sheet = any(
+                kw in sn_lower for kw in ["closed", "uzatvoren", "uzavret"]
             )
 
             if has_vol and has_sym and not is_closed and not is_closed_sheet:
@@ -350,100 +348,59 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                             continue
 
                         try:
-                            # Handle spaces, non-breaking spaces, and commas
-                            vol_raw = (
+                            v = Decimal(
                                 str(row.get(vol_col, "0"))
                                 .replace("\xa0", "")
                                 .replace(" ", "")
                                 .replace(",", ".")
                             )
-                            # Handle cases where multiple dots might exist if . was thousands separator
-                            if vol_raw.count(".") > 1:
-                                last_dot = vol_raw.rfind(".")
-                                vol_raw = (
-                                    vol_raw[:last_dot].replace(".", "")
-                                    + vol_raw[last_dot:]
-                                )
-                            vol = float(vol_raw)
-
-                            price_raw = (
+                            p = Decimal(
                                 str(row.get(price_col, "0"))
                                 .replace("\xa0", "")
                                 .replace(" ", "")
                                 .replace(",", ".")
-                                if price_col
-                                else "0"
                             )
-                            if price_raw.count(".") > 1:
-                                last_dot = price_raw.rfind(".")
-                                price_raw = (
-                                    price_raw[:last_dot].replace(".", "")
-                                    + price_raw[last_dot:]
-                                )
-                            price = float(price_raw)
+                            dt_val = _etoro_parse_date(
+                                row.get(date_col)
+                            )  # reusing eToro date helper or common one
 
-                            dt_val = (
-                                pd.to_datetime(row.get(date_col), errors="coerce")
-                                if not pd.isna(row.get(date_col))
-                                else timezone.now()
-                            )
-                            if pd.isna(dt_val):
-                                dt_val = timezone.now()
-                            if timezone.is_naive(dt_val):
-                                dt_val = timezone.make_aware(dt_val)
-
-                            if vol > 0.0001:
-                                # Aggregate current holdings from this sheet
+                            if v > 0:
                                 if sym not in open_positions_data:
                                     open_positions_data[sym] = {
-                                        "quantity": 0.0,
-                                        "total_cost": 0.0,
+                                        "quantity": Decimal("0"),
+                                        "total_cost": Decimal("0"),
                                         "date": dt_val,
                                     }
-
-                                open_positions_data[sym]["quantity"] += vol
-                                open_positions_data[sym]["total_cost"] += vol * price
-                                # Keep earliest date for opened_at
+                                open_positions_data[sym]["quantity"] += v
+                                open_positions_data[sym]["total_cost"] += v * p
                                 if dt_val < open_positions_data[sym]["date"]:
                                     open_positions_data[sym]["date"] = dt_val
-
                                 all_txs.append(
                                     Transaction(
                                         broker_account=account,
                                         symbol=sym,
                                         type="buy",
-                                        quantity=vol,
-                                        price=price,
-                                        amount=vol * price,
+                                        quantity=v,
+                                        price=p,
+                                        amount=v * p,
                                         date=dt_val,
                                     )
                                 )
                         except Exception:
                             continue
-                    break  # Found the main sheet, move to next sheet
+                    break
 
             # --- Cash Operations (History) ---
-            # Use broad checks for "comment/komentár" and "instrument"
             if any(
-                kw in val
-                for val in row_vals
-                for kw in ["comment", "komentár", "pozna", "poznámka"]
-            ) and any(
-                kw in val
-                for val in row_vals
-                for kw in ["instrument", "inštrument", "symbol"]
-            ):
+                kw in row_vals for kw in ["comment", "komentár", "pozna", "poznámka"]
+            ) and any(kw in row_vals for kw in ["instrument", "inštrument", "symbol"]):
                 df_clean = sheet_df.iloc[i + 1 :].copy()
                 df_clean.columns = sheet_df.iloc[i].values
-
                 comment_col = next(
                     (
                         c
                         for c in df_clean.columns
-                        if any(
-                            kw in str(c).lower().strip()
-                            for kw in ["comment", "komentár", "pozna", "poznámka"]
-                        )
+                        if any(kw in str(c).lower() for kw in ["comment", "komentár"])
                     ),
                     None,
                 )
@@ -452,8 +409,7 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                         c
                         for c in df_clean.columns
                         if any(
-                            kw in str(c).lower().strip()
-                            for kw in ["instrument", "inštrument", "symbol"]
+                            kw in str(c).lower() for kw in ["instrument", "inštrument"]
                         )
                     ),
                     None,
@@ -462,17 +418,7 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     (
                         c
                         for c in df_clean.columns
-                        if any(
-                            kw in str(c).lower()
-                            for kw in [
-                                "time",
-                                "dátum",
-                                "datum",
-                                "time of operation",
-                                "čas",
-                                "cas",
-                            ]
-                        )
+                        if any(kw in str(c).lower() for kw in ["time", "dátum"])
                     ),
                     None,
                 )
@@ -480,25 +426,8 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                 for _, row in df_clean.iterrows():
                     instr_raw = str(row.get(instr_col, "")).strip()
                     instr = map_xtb_symbol_to_yf(instr_raw)
-                    if not instr:
-                        continue
-
-                    comment = str(row.get(comment_col, ""))
-                    # Clean "..." and other junk from comment
-                    comment = comment.replace("...", "").strip()
-
-                    dt_val = (
-                        pd.to_datetime(row.get(time_col), errors="coerce")
-                        if not pd.isna(row.get(time_col))
-                        else timezone.now()
-                    )
-                    if pd.isna(dt_val):
-                        dt_val = timezone.now()
-                    if timezone.is_naive(dt_val):
-                        dt_val = timezone.make_aware(dt_val)
-
-                    # Robust regex for "OPEN BUY 10 @ 150,00"
-                    # We normalize comment decimals to . for regex
+                    comment = str(row.get(comment_col, "")).replace("...", "").strip()
+                    dt_val = _etoro_parse_date(row.get(time_col))
                     comment_norm = comment.replace(",", ".")
                     m_open = re.search(
                         r"OPEN (BUY|SELL) ([\d\.\s]+) @ ([\d\.\s]+)", comment_norm
@@ -511,8 +440,23 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     if m_open:
                         act, vol_s, pr_s = m_open.groups()
                         try:
-                            v = float(vol_s.replace(" ", ""))
-                            p = float(pr_s.replace(" ", ""))
+                            v = Decimal(vol_s.replace(" ", ""))
+                            p = Decimal(pr_s.replace(" ", ""))
+                            if instr not in history_positions_data:
+                                history_positions_data[instr] = {
+                                    "vol_acc": Decimal("0"),
+                                    "cost_acc": Decimal("0"),
+                                    "date": dt_val,
+                                    "dividends": Decimal("0"),
+                                }
+                            history_positions_data[instr]["vol_acc"] += (
+                                v if act == "BUY" else -v
+                            )
+                            history_positions_data[instr]["cost_acc"] += (
+                                (v * p) if act == "BUY" else -(v * p)
+                            )
+                            if dt_val < history_positions_data[instr]["date"]:
+                                history_positions_data[instr]["date"] = dt_val
                             all_txs.append(
                                 Transaction(
                                     broker_account=account,
@@ -524,27 +468,25 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                                     date=dt_val,
                                 )
                             )
-                            if instr not in history_positions_data:
-                                history_positions_data[instr] = {
-                                    "vol_acc": 0.0,
-                                    "cost_acc": 0.0,
-                                    "date": dt_val,
-                                }
-                            history_positions_data[instr]["vol_acc"] += (
-                                v if act == "BUY" else -v
-                            )
-                            history_positions_data[instr]["cost_acc"] += (
-                                (v * p) if act == "BUY" else -(v * p)
-                            )
-                            if dt_val < history_positions_data[instr]["date"]:
-                                history_positions_data[instr]["date"] = dt_val
                         except Exception:
                             pass
                     elif m_close:
                         act, vol_s, pr_s = m_close.groups()
                         try:
-                            v = float(vol_s.replace(" ", ""))
-                            p = float(pr_s.replace(" ", ""))
+                            v = Decimal(vol_s.replace(" ", ""))
+                            p = Decimal(pr_s.replace(" ", ""))
+                            if instr not in history_positions_data:
+                                history_positions_data[instr] = {
+                                    "vol_acc": Decimal("0"),
+                                    "cost_acc": Decimal("0"),
+                                    "date": dt_val,
+                                    "dividends": Decimal("0"),
+                                }
+                            history_positions_data[instr]["vol_acc"] -= (
+                                v if act == "BUY" else -v
+                            )
+                            if dt_val < history_positions_data[instr]["date"]:
+                                history_positions_data[instr]["date"] = dt_val
                             all_txs.append(
                                 Transaction(
                                     broker_account=account,
@@ -556,17 +498,36 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                                     date=dt_val,
                                 )
                             )
-                            if instr not in history_positions_data:
-                                history_positions_data[instr] = {
-                                    "vol_acc": 0.0,
-                                    "cost_acc": 0.0,
-                                    "date": dt_val,
-                                }
-                            history_positions_data[instr]["vol_acc"] -= (
-                                v if act == "BUY" else -v
+                        except Exception:
+                            pass
+                    elif (
+                        "dividend" in comment.lower()
+                        or "daň z dividend" in comment.lower()
+                    ):
+                        try:
+                            sym_instr = instr or map_xtb_symbol_to_yf(
+                                str(row.get(instr_col, ""))
                             )
-                            if dt_val < history_positions_data[instr]["date"]:
-                                history_positions_data[instr]["date"] = dt_val
+                            if not sym_instr:
+                                continue
+                            amt = Decimal(
+                                str(row.get("Amount", "0"))
+                                .replace("\xa0", "")
+                                .replace(" ", "")
+                                .replace(",", ".")
+                            )
+                            if sym_instr not in history_positions_data:
+                                history_positions_data[sym_instr] = {
+                                    "vol_acc": Decimal("0"),
+                                    "cost_acc": Decimal("0"),
+                                    "date": dt_val,
+                                    "dividends": Decimal("0"),
+                                }
+                            if "dividends" not in history_positions_data[sym_instr]:
+                                history_positions_data[sym_instr]["dividends"] = (
+                                    Decimal("0")
+                                )
+                            history_positions_data[sym_instr]["dividends"] += amt
                         except Exception:
                             pass
                 break
@@ -597,6 +558,7 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     symbol=sym,
                     quantity=abs(qty),
                     average_open_price=abs(cost),
+                    total_dividends=d.get("dividends", 0.0),
                     opened_at=d["date"],
                 )
             )
@@ -719,8 +681,15 @@ def _etoro_process_activity_sheet(
             kw in t_val
             for kw in ["close", "zatvor", "zavre", "uzavre", "predaj", "sell"]
         )
+        is_dividend = any(
+            kw in t_val
+            for kw in ["dividend", "dividenda", "payment from stock", "platba z akcií"]
+        )
+        is_tax = any(
+            kw in t_val for kw in ["withholding tax", "zrážková daň", "daň zo zdroja"]
+        )
 
-        if not (is_open or is_close):
+        if not (is_open or is_close or is_dividend or is_tax):
             continue
 
         symbol = _etoro_extract_symbol(str(row.get(details_col, "")))
@@ -733,26 +702,31 @@ def _etoro_process_activity_sheet(
 
         try:
             u_val = str(row.get(units_col, "0")).replace(",", ".").replace(" ", "")
-            units = abs(float(u_val))
+            units = abs(Decimal(u_val))
             a_val = str(row.get(amount_col, "0")).replace(",", ".").replace(" ", "")
-            px_val = float(a_val) / units if units > 0 else 0.0
+            amount_dec = Decimal(a_val)
+            px_val = amount_dec / units if units > 0 else Decimal("0")
             dt_val = _etoro_parse_date(row.get(date_col))
 
             # Update aggregation
             if symbol not in raw_positions:
                 raw_positions[symbol] = {
-                    "volume": 0.0,
-                    "total_cost": 0.0,
+                    "volume": Decimal("0"),
+                    "total_cost": Decimal("0"),
                     "opened_at": dt_val,
+                    "dividends": Decimal("0"),
                 }
 
             if is_open:
                 raw_positions[symbol]["volume"] += units
-                raw_positions[symbol]["total_cost"] += float(a_val)
+                raw_positions[symbol]["total_cost"] += amount_dec
                 if dt_val < raw_positions[symbol]["opened_at"]:
                     raw_positions[symbol]["opened_at"] = dt_val
-            else:
+            elif is_close:
                 raw_positions[symbol]["volume"] -= units
+            elif is_dividend or is_tax:
+                # Dividends are usually positive, taxes negative in Amount column
+                raw_positions[symbol]["dividends"] += amount_dec
 
             # Create transaction
             to_create_txs.append(
@@ -762,7 +736,7 @@ def _etoro_process_activity_sheet(
                     type="buy" if is_open else "sell",
                     quantity=units,
                     price=px_val,
-                    amount=float(a_val),
+                    amount=amount_dec,
                     date=dt_val,
                 )
             )
@@ -783,6 +757,7 @@ def _etoro_process_activity_sheet(
                     symbol=symbol,
                     quantity=data["volume"],
                     average_open_price=data["total_cost"] / data["volume"],
+                    total_dividends=data.get("dividends", 0.0),
                     opened_at=data["opened_at"],
                 )
             )

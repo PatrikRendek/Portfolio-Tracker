@@ -55,10 +55,15 @@ class PortfolioPosition(models.Model):
     )
     symbol = models.CharField(max_length=50)
     asset_class = models.CharField(max_length=50, blank=True, default="stock")
-    quantity = models.FloatField(default=0.0)
-    average_open_price = models.FloatField(default=0.0)
-    current_price = models.FloatField(default=0.0, blank=True, null=True)
+    quantity = models.DecimalField(max_digits=20, decimal_places=8, default=0.0)
+    average_open_price = models.DecimalField(
+        max_digits=20, decimal_places=8, default=0.0
+    )
+    current_price = models.DecimalField(
+        max_digits=20, decimal_places=8, default=0.0, blank=True, null=True
+    )
     currency = models.CharField(max_length=10, default="USD")
+    total_dividends = models.DecimalField(max_digits=20, decimal_places=8, default=0.0)
     opened_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -81,10 +86,12 @@ class Transaction(models.Model):
     )
     symbol = models.CharField(max_length=50)
     type = models.CharField(max_length=10, choices=TransactionType.choices)
-    quantity = models.FloatField()
-    price = models.FloatField()
-    amount = models.FloatField(
-        help_text="Total value of transaction (usually qty * price)"
+    quantity = models.DecimalField(max_digits=20, decimal_places=8)
+    price = models.DecimalField(max_digits=20, decimal_places=8)
+    amount = models.DecimalField(
+        max_digits=20,
+        decimal_places=8,
+        help_text="Total value of transaction (usually qty * price)",
     )
     date = models.DateTimeField()
     external_id = models.CharField(

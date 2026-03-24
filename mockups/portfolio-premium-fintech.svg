@@ -1,0 +1,70 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" fill="#07111F"/>
+  <rect x="28" y="24" width="1544" height="932" rx="28" fill="url(#bg)"/>
+  <text x="70" y="78" fill="#F8FAFC" font-family="Segoe UI, Arial" font-size="28" font-weight="700">Portfolio / Premium Fintech</text>
+  <text x="70" y="108" fill="#7C8BA1" font-family="Segoe UI, Arial" font-size="14">dominant summary, benchmark simulation, soft luxury cards</text>
+
+  <rect x="70" y="142" width="860" height="168" rx="26" fill="#0E1A30" stroke="#1D3559"/>
+  <text x="108" y="186" fill="#7FA5D6" font-family="Segoe UI, Arial" font-size="16">Total Portfolio Value</text>
+  <text x="108" y="244" fill="#FFFFFF" font-family="Segoe UI, Arial" font-size="58" font-weight="700">$26,993.63</text>
+  <text x="110" y="282" fill="#28E38D" font-family="Segoe UI, Arial" font-size="18" font-weight="700">+68.91% since start</text>
+  <rect x="610" y="176" width="120" height="34" rx="17" fill="#17355E"/>
+  <text x="646" y="198" fill="#D9E7FF" font-family="Segoe UI, Arial" font-size="14" font-weight="700">MAX</text>
+  <rect x="746" y="176" width="142" height="34" rx="17" fill="#102646"/>
+  <text x="774" y="198" fill="#A8BEDD" font-family="Segoe UI, Arial" font-size="14" font-weight="700">Performance %</text>
+
+  <rect x="958" y="142" width="292" height="168" rx="22" fill="#0E1730" stroke="#1D3559"/>
+  <text x="990" y="184" fill="#91A4C3" font-family="Segoe UI, Arial" font-size="15">S&amp;P 500 Simulation</text>
+  <text x="990" y="236" fill="#FFFFFF" font-family="Segoe UI, Arial" font-size="42" font-weight="700">$24,881.22</text>
+  <text x="990" y="274" fill="#C7A96B" font-family="Segoe UI, Arial" font-size="16" font-weight="700">+50.79% max</text>
+
+  <rect x="1280" y="142" width="252" height="168" rx="22" fill="#0E1730" stroke="#1D3559"/>
+  <text x="1312" y="184" fill="#91A4C3" font-family="Segoe UI, Arial" font-size="15">Cash If Idle</text>
+  <text x="1312" y="236" fill="#FFFFFF" font-family="Segoe UI, Arial" font-size="42" font-weight="700">$18,997.84</text>
+  <text x="1312" y="274" fill="#6D7D96" font-family="Segoe UI, Arial" font-size="16" font-weight="700">0.00% max</text>
+
+  <rect x="70" y="344" width="1462" height="344" rx="24" fill="#0B162A" stroke="#182B49"/>
+  <text x="104" y="390" fill="#F8FAFC" font-family="Segoe UI, Arial" font-size="24" font-weight="700">Performance vs S&amp;P 500</text>
+  <text x="104" y="416" fill="#72829A" font-family="Segoe UI, Arial" font-size="14">toggle between performance and value without changing top cards</text>
+  <line x1="110" y1="632" x2="1480" y2="632" stroke="#22344F"/>
+  <line x1="110" y1="560" x2="1480" y2="560" stroke="#16263E"/>
+  <line x1="110" y1="488" x2="1480" y2="488" stroke="#16263E"/>
+  <line x1="110" y1="416" x2="1480" y2="416" stroke="#16263E"/>
+  <path d="M120 618 C 200 640, 230 520, 320 560 S 500 600, 620 520 S 760 540, 860 470 S 960 500, 1080 412 S 1260 378, 1470 402" stroke="#12E28C" stroke-width="4" fill="none"/>
+  <path d="M120 590 C 220 560, 320 520, 420 500 S 600 470, 720 450 S 860 458, 980 432 S 1160 410, 1470 446" stroke="#BFA774" stroke-width="3" stroke-dasharray="8 8" fill="none" opacity="0.9"/>
+  <path d="M120 618 C 200 640, 230 520, 320 560 S 500 600, 620 520 S 760 540, 860 470 S 960 500, 1080 412 S 1260 378, 1470 402 L 1470 664 L 120 664 Z" fill="url(#greenfade)" opacity="0.28"/>
+  <circle cx="716" cy="388" r="6" fill="#12E28C"/>
+  <text x="728" y="393" fill="#DCE7F5" font-family="Segoe UI, Arial" font-size="14" font-weight="700">My Portfolio</text>
+  <circle cx="860" cy="388" r="6" fill="#BFA774"/>
+  <text x="872" y="393" fill="#DCE7F5" font-family="Segoe UI, Arial" font-size="14" font-weight="700">S&amp;P 500</text>
+
+  <rect x="70" y="718" width="1462" height="198" rx="24" fill="#0B162A" stroke="#182B49"/>
+  <text x="104" y="762" fill="#F8FAFC" font-family="Segoe UI, Arial" font-size="22" font-weight="700">Holdings</text>
+  <text x="104" y="788" fill="#72829A" font-family="Segoe UI, Arial" font-size="14">clean rows with wider first column and softer separators</text>
+  <line x1="104" y1="816" x2="1492" y2="816" stroke="#1D2A42"/>
+  <line x1="104" y1="864" x2="1492" y2="864" stroke="#16263E"/>
+  <line x1="104" y1="908" x2="1492" y2="908" stroke="#16263E"/>
+  <text x="104" y="844" fill="#FFFFFF" font-family="Segoe UI, Arial" font-size="20" font-weight="700">PLTR</text>
+  <text x="104" y="886" fill="#FFFFFF" font-family="Segoe UI, Arial" font-size="20" font-weight="700">MU</text>
+  <text x="104" y="930" fill="#FFFFFF" font-family="Segoe UI, Arial" font-size="20" font-weight="700">ABNB</text>
+  <rect x="358" y="832" width="148" height="10" rx="5" fill="#163455"/>
+  <rect x="358" y="832" width="102" height="10" rx="5" fill="#3B82F6"/>
+  <rect x="358" y="874" width="148" height="10" rx="5" fill="#163455"/>
+  <rect x="358" y="874" width="84" height="10" rx="5" fill="#3B82F6"/>
+  <rect x="358" y="918" width="148" height="10" rx="5" fill="#163455"/>
+  <rect x="358" y="918" width="52" height="10" rx="5" fill="#3B82F6"/>
+  <text x="1070" y="844" fill="#12E28C" font-family="Segoe UI, Arial" font-size="18" font-weight="700">+$57.37</text>
+  <text x="1070" y="886" fill="#FF6B6B" font-family="Segoe UI, Arial" font-size="18" font-weight="700">-$7.06</text>
+  <text x="1070" y="930" fill="#12E28C" font-family="Segoe UI, Arial" font-size="18" font-weight="700">+$40.33</text>
+
+  <defs>
+    <linearGradient id="bg" x1="800" y1="24" x2="800" y2="956" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07111F"/>
+      <stop offset="1" stop-color="#091222"/>
+    </linearGradient>
+    <linearGradient id="greenfade" x1="795" y1="402" x2="795" y2="664" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#12E28C"/>
+      <stop offset="1" stop-color="#12E28C" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>

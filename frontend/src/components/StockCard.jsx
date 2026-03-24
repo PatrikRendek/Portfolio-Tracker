@@ -5,29 +5,30 @@ export default function StockCard({ stock, onAddWatchlist, isInWatchlist, index 
     const navigate = useNavigate();
     const change = stock.close && stock.open ? ((stock.close - stock.open) / stock.open) * 100 : 0;
     const isPositive = change >= 0;
+    const lastPrice = Number.isFinite(stock.close) ? `$${stock.close.toFixed(2)}` : '-';
+    const volumeLabel = stock.volume ? `${(stock.volume / 1e6).toFixed(1)}M` : '-';
 
     return (
         <div
-            className="glass-card p-5 cursor-pointer group animate-fade-in-up"
+            className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm cursor-pointer transition-colors hover:bg-gray-50 dark:border-[#202832] dark:bg-[#0a0e13] dark:hover:bg-[#0f151d]"
             style={{ animationDelay: `${index * 0.08}s` }}
             onClick={() => navigate(`/stock/${stock.symbol}`)}
         >
-            <div className="flex items-start justify-between mb-4">
-                <div>
-                    <div className="flex items-center gap-2 mb-1">
-                        {stock.logo ? (
-                            <img src={stock.logo} alt={stock.symbol} className="w-8 h-8 rounded-lg object-contain bg-white p-0.5" />
-                        ) : (
-                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white
-              ${isPositive ? 'bg-gradient-to-br from-green-400 to-cyan-400' : 'bg-gradient-to-br from-red-400 to-pink-400'}`}>
-                                {stock.symbol?.slice(0, 2)}
-                            </div>
-                        )}
-                        <h3 className="font-bold text-sm dark:text-white text-gray-900">{stock.symbol}</h3>
+            <div className="flex items-start justify-between mb-5">
+                <div className="flex items-center gap-3">
+                    {stock.logo ? (
+                        <img src={stock.logo} alt={stock.symbol} className="w-10 h-10 rounded-xl object-contain bg-white p-1 border border-gray-100" />
+                    ) : (
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold text-white bg-[#22324a] border border-[#314766]">
+                            {stock.symbol?.slice(0, 2)}
+                        </div>
+                    )}
+                    <div>
+                        <h3 className="font-bold text-sm text-gray-900 dark:text-slate-100 tracking-wide">{stock.symbol}</h3>
+                        <p className="text-[11px] text-gray-500 dark:text-slate-500 uppercase tracking-[0.12em] truncate max-w-[140px]">
+                            {stock.name || stock.exchange || 'Market'}
+                        </p>
                     </div>
-                    <p className="text-xs dark:text-gray-500 text-gray-400 truncate max-w-[120px]">
-                        {stock.exchange || 'Exchange'}
-                    </p>
                 </div>
                 {onAddWatchlist && (
                     <button
@@ -35,41 +36,33 @@ export default function StockCard({ stock, onAddWatchlist, isInWatchlist, index 
                             e.stopPropagation();
                             onAddWatchlist(stock);
                         }}
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-300
-              ${isInWatchlist
-                                ? 'bg-accent-green/20 text-accent-green'
-                                : 'dark:bg-dark-500 bg-gray-100 dark:text-gray-400 text-gray-500 hover:bg-accent-purple/20 hover:text-accent-purple'
-                            }`}
+                        className={`h-8 w-8 rounded-lg inline-flex items-center justify-center border transition-colors ${isInWatchlist
+                            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-400/20'
+                            : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100 dark:bg-[#111723] dark:text-slate-400 dark:border-[#202832] dark:hover:bg-[#182131]'
+                        }`}
                     >
                         {isInWatchlist ? <Check size={14} /> : <Plus size={14} />}
                     </button>
                 )}
             </div>
 
-            {/* Price */}
-            <div className="mb-3">
-                <span className="text-2xl font-bold dark:text-white text-gray-900">
-                    ${stock.close?.toFixed(2) || '—'}
-                </span>
+            <div className="mb-4">
+                <div className="text-[10px] uppercase tracking-[0.18em] text-gray-400 dark:text-slate-500 font-bold mb-2">Last</div>
+                <span className="text-3xl font-bold text-gray-900 dark:text-white">{lastPrice}</span>
             </div>
 
-            {/* Change */}
-            <div className="flex items-center gap-2">
-                <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold
-          ${isPositive
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-red-500/10 text-red-400'}`}>
+            <div className="flex items-center justify-between gap-3">
+                <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border ${isPositive
+                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-400/20'
+                    : 'bg-red-500/10 text-red-500 border-red-400/20'
+                }`}>
                     {isPositive ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                     {isPositive ? '+' : ''}{change.toFixed(2)}%
                 </div>
-                <span className="text-xs dark:text-gray-500 text-gray-400">
-                    Vol: {stock.volume ? (stock.volume / 1e6).toFixed(1) + 'M' : '—'}
+                <span className="text-xs text-gray-500 dark:text-slate-500">
+                    Vol {volumeLabel}
                 </span>
             </div>
-
-            {/* Bottom gradient line */}
-            <div className={`mt-4 h-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500
-        ${isPositive ? 'bg-gradient-to-r from-green-400 to-cyan-400' : 'bg-gradient-to-r from-red-400 to-pink-400'}`} />
         </div>
     );
 }

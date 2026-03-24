@@ -13,11 +13,10 @@ import Portfolio from './pages/Portfolio';
 
 export default function App() {
     return (
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
             <ThemeProvider>
                 <AuthProvider>
-                    <div className="min-h-screen transition-colors duration-300
-            dark:bg-dark-900 bg-gray-50">
+                    <div className="min-h-screen bg-gray-50 transition-colors duration-300 dark:bg-[#050811]">
                         <Navbar />
                         <main>
                             <Routes>

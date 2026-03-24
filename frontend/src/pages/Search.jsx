@@ -63,23 +63,20 @@ export default function Search() {
         }
     };
 
-    const watchlistSymbols = watchlist.map(w => w.symbol);
+    const watchlistSymbols = watchlist.map((w) => w.symbol);
 
     return (
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold dark:text-white text-gray-900 mb-2">
-                    Search Results
-                </h1>
-                <p className="dark:text-gray-400 text-gray-600">
-                    {query ? `Showing results for "${query}"` : 'Search for stocks above'}
-                </p>
+                <div className="text-[11px] uppercase tracking-[0.24em] text-gray-400 dark:text-slate-500 font-bold mb-3">Search</div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-50 mb-2">Search Results</h1>
+                <p className="text-sm text-gray-500 dark:text-slate-400">{query ? `Showing results for "${query}"` : 'Search for stocks above'}</p>
             </div>
 
             {loading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[...Array(6)].map((_, i) => (
-                        <div key={i} className="glass-card p-5 h-36 animate-shimmer" />
+                        <div key={i} className="rounded-2xl border border-gray-100 bg-white h-36 animate-pulse dark:border-[#202832] dark:bg-[#0a0e13]" />
                     ))}
                 </div>
             ) : results.length > 0 ? (
@@ -95,10 +92,12 @@ export default function Search() {
                     ))}
                 </div>
             ) : query ? (
-                <div className="glass-card p-12 text-center">
-                    <SearchIcon size={48} className="mx-auto mb-4 dark:text-gray-600 text-gray-300" />
-                    <h3 className="text-xl font-bold dark:text-white text-gray-900 mb-2">No results found</h3>
-                    <p className="dark:text-gray-400 text-gray-600">Try searching with a different ticker or name</p>
+                <div className="rounded-3xl border border-gray-100 bg-white p-12 text-center shadow-sm dark:border-[#202832] dark:bg-[#0a0e13]">
+                    <div className="w-14 h-14 rounded-2xl bg-[#22324a] border border-[#314766] flex items-center justify-center mx-auto mb-4 shadow-sm">
+                        <SearchIcon size={24} className="text-white" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-2">No results found</h3>
+                    <p className="text-gray-500 dark:text-slate-400">Try searching with a different ticker or name</p>
                 </div>
             ) : null}
         </div>

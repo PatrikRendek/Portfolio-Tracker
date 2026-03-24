@@ -7,13 +7,13 @@ export default function ThemeToggle() {
     return (
         <button
             onClick={toggleTheme}
-            className="relative w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300
-        dark:bg-dark-600 dark:hover:bg-dark-500 dark:text-accent-cyan
-        bg-gray-100 hover:bg-gray-200 text-accent-purple"
+            className="h-10 w-10 rounded-xl flex items-center justify-center border transition-all duration-300
+            bg-gray-50 hover:bg-gray-100 text-[#22324a] border-gray-200
+            dark:bg-[#111723] dark:hover:bg-[#182131] dark:text-[#d7e1ee] dark:border-[#253041]"
             aria-label="Toggle theme"
         >
             <div className="transition-transform duration-500" style={{ transform: theme === 'dark' ? 'rotate(0deg)' : 'rotate(180deg)' }}>
-                {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
+                {theme === 'dark' ? <Moon size={17} /> : <Sun size={17} />}
             </div>
         </button>
     );

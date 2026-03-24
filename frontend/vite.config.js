@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react'
 
 const apiTarget = process.env.VITE_API_TARGET || 'http://127.0.0.1:8000';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
-  base: '/static/frontend/',
+  base: command === 'serve' ? '/' : '/static/frontend/',
   server: {
     port: 5173,
     watch: {
@@ -28,4 +28,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

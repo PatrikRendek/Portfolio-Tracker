@@ -105,12 +105,15 @@ export default function StockChart({ data, symbol, height = 300, transactions = 
         const isDark = theme === 'dark';
 
         const gradient = ctx.createLinearGradient(0, 0, 0, height);
+        const positiveLine = '#22c55e';
+        const negativeLine = '#ef4444';
+        const markerColor = '#22324a';
         if (isPositive) {
-            gradient.addColorStop(0, 'rgba(0, 230, 118, 0.3)');
-            gradient.addColorStop(1, 'rgba(0, 230, 118, 0.0)');
+            gradient.addColorStop(0, 'rgba(34, 197, 94, 0.24)');
+            gradient.addColorStop(1, 'rgba(34, 197, 94, 0.0)');
         } else {
-            gradient.addColorStop(0, 'rgba(255, 82, 82, 0.3)');
-            gradient.addColorStop(1, 'rgba(255, 82, 82, 0.0)');
+            gradient.addColorStop(0, 'rgba(239, 68, 68, 0.22)');
+            gradient.addColorStop(1, 'rgba(239, 68, 68, 0.0)');
         }
 
         chartInstance.current = new Chart(ctx, {
@@ -121,14 +124,14 @@ export default function StockChart({ data, symbol, height = 300, transactions = 
                     {
                         label: symbol,
                         data: prices,
-                        borderColor: isPositive ? '#00e676' : '#ff5252',
+                        borderColor: isPositive ? positiveLine : negativeLine,
                         borderWidth: 2,
                         backgroundColor: gradient,
                         fill: true,
-                        tension: 0.4,
+                        tension: 0.32,
                         pointRadius: 0,
                         pointHoverRadius: 6,
-                        pointHoverBackgroundColor: isPositive ? '#00e676' : '#ff5252',
+                        pointHoverBackgroundColor: isPositive ? positiveLine : negativeLine,
                         pointHoverBorderColor: '#fff',
                         pointHoverBorderWidth: 2,
                     },
@@ -137,11 +140,11 @@ export default function StockChart({ data, symbol, height = 300, transactions = 
                         data: markerData,
                         showLine: false,
                         pointStyle: 'circle',
-                        pointRadius: (ctx) => (ctx.dataIndex === highlightedIdxRef.current ? 12 : 6),
-                        pointBackgroundColor: (ctx) => (ctx.dataIndex === highlightedIdxRef.current ? '#fff' : '#00e676'),
-                        pointBorderColor: '#fff',
+                        pointRadius: (ctx) => (ctx.dataIndex === highlightedIdxRef.current ? 11 : 5),
+                        pointBackgroundColor: (ctx) => (ctx.dataIndex === highlightedIdxRef.current ? '#fff' : markerColor),
+                        pointBorderColor: isDark ? '#d7e1ee' : '#fff',
                         pointBorderWidth: 2,
-                        pointHoverRadius: 14,
+                        pointHoverRadius: 12,
                         pointHoverBackgroundColor: '#fff',
                     }
                 ],
@@ -156,14 +159,16 @@ export default function StockChart({ data, symbol, height = 300, transactions = 
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: isDark ? 'rgba(26, 31, 58, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                        titleColor: isDark ? '#fff' : '#1a1a2e',
-                        bodyColor: isDark ? '#e0e0e0' : '#333',
-                        borderColor: isDark ? 'rgba(124, 77, 255, 0.3)' : 'rgba(0,0,0,0.1)',
+                        backgroundColor: isDark ? 'rgba(10, 14, 19, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+                        titleColor: isDark ? '#f8fafc' : '#0f172a',
+                        bodyColor: isDark ? '#cbd5e1' : '#334155',
+                        borderColor: isDark ? 'rgba(37, 48, 65, 1)' : 'rgba(226, 232, 240, 1)',
                         borderWidth: 1,
-                        cornerRadius: 12,
-                        padding: 12,
+                        cornerRadius: 10,
+                        padding: 10,
                         displayColors: false,
+                        titleFont: { size: 11, family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace' },
+                        bodyFont: { size: 11, family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace' },
                         callbacks: {
                             label: (ctx) => {
                                 if (ctx.datasetIndex === 1) return `TRADE AT: $${ctx.parsed.y.toFixed(2)}`;
@@ -179,10 +184,10 @@ export default function StockChart({ data, symbol, height = 300, transactions = 
                             drawBorder: false,
                         },
                         ticks: {
-                            color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+                            color: isDark ? '#64748b' : '#64748b',
                             maxRotation: 0,
                             maxTicksLimit: 8,
-                            font: { size: 11, family: 'Inter' },
+                            font: { size: 11, family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace' },
                         },
                     },
                     y: {
@@ -191,9 +196,9 @@ export default function StockChart({ data, symbol, height = 300, transactions = 
                             drawBorder: false,
                         },
                         ticks: {
-                            color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+                            color: isDark ? '#64748b' : '#64748b',
                             callback: (v) => `$${v}`,
-                            font: { size: 11, family: 'Inter' },
+                            font: { size: 11, family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace' },
                         },
                     },
                 },

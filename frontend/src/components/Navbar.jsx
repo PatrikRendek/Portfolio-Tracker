@@ -60,6 +60,8 @@ export default function Navbar() {
         if (searchQuery.trim()) {
             navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
             setSearchQuery('');
+            setShowResults(false);
+            setMobileOpen(false);
         }
     };
 
@@ -68,180 +70,143 @@ export default function Navbar() {
         navigate('/login');
     };
 
-    return (
-        <nav className="sticky top-0 z-50 backdrop-blur-xl border-b transition-colors duration-300
-      dark:bg-dark-800/80 dark:border-dark-500/30
-      bg-white/80 border-gray-200/50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex items-center justify-between h-16">
-                    {/* Logo */}
-                    <Link to="/" className="flex items-center gap-2 group">
-                        <div className="w-9 h-9 rounded-xl bg-gradient-accent flex items-center justify-center
-              group-hover:shadow-glow-purple transition-shadow duration-300">
-                            <TrendingUp size={20} className="text-white" />
+    const navBtn = 'h-10 inline-flex items-center px-4 rounded-xl border text-sm font-semibold transition-colors';
+    const navBtnNeutral = `${navBtn} border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-[#253041] dark:text-slate-200 dark:bg-[#111723] dark:hover:bg-[#182131]`;
+    const accentBlock = 'bg-[#22324a] border-[#314766]';
+
+    const SearchBox = ({ mobile = false }) => (
+        <div className={`relative ${mobile ? '' : 'w-full'}`} ref={searchRef}>
+            <form onSubmit={handleSearch}>
+                <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="SEARCH STOCKS, ETFS, TICKERS"
+                        className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-blue-500 dark:border-[#253041] dark:bg-[#0b1220] dark:text-white dark:placeholder:text-slate-500"
+                        onFocus={() => searchQuery.length > 1 && setShowResults(true)}
+                    />
+                    {isSearching && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
                         </div>
-                        <span className="text-xl font-bold bg-gradient-to-r from-accent-purple to-accent-cyan bg-clip-text text-transparent">
-                            StockPulse
-                        </span>
+                    )}
+                </div>
+            </form>
+
+            {showResults && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 w-full mt-2 rounded-xl overflow-hidden shadow-2xl z-50 border border-gray-200 bg-white dark:border-[#253041] dark:bg-[#0f1722]">
+                    <div className="max-h-80 overflow-y-auto">
+                        {searchResults.map((result) => (
+                            <button
+                                key={result.symbol}
+                                onClick={() => handleSelectResult(result.symbol)}
+                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#182131] transition-colors border-b border-gray-100 dark:border-[#253041] last:border-0"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="font-bold text-gray-900 dark:text-white tracking-wide">{result.symbol}</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 font-medium uppercase tracking-[0.15em] dark:bg-[#111723] dark:text-slate-500">
+                                        {result.type || 'Stock'}
+                                    </span>
+                                </div>
+                                <span className="text-xs text-gray-500 dark:text-slate-500 truncate w-full block mt-1">{result.description}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+
+    return (
+        <nav className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/94 backdrop-blur-xl dark:border-[#1f2937] dark:bg-[#111827]/96">
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex items-center justify-between h-16 gap-4">
+                    <Link to="/" className="flex items-center gap-3 min-w-fit">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center border shadow-sm ${accentBlock}`}>
+                            <TrendingUp size={18} className="text-white" />
+                        </div>
+                        <span className="text-base font-bold text-gray-900 dark:text-white tracking-wide">StockPulse</span>
                     </Link>
 
-                    {/* Search */}
-                    <div className="hidden md:flex flex-1 max-w-md mx-8 relative" ref={searchRef}>
-                        <form onSubmit={handleSearch} className="w-full">
-                            <div className="relative w-full">
-                                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 dark:text-gray-500 text-gray-400" />
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search stocks... (e.g. AAPL, MSFT)"
-                                    className="input-field pl-10 py-2.5 text-sm"
-                                    onFocus={() => searchQuery.length > 1 && setShowResults(true)}
-                                />
-                                {isSearching && (
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                        <div className="w-4 h-4 border-2 border-accent-purple border-t-transparent rounded-full animate-spin"></div>
-                                    </div>
-                                )}
-                            </div>
-                        </form>
-
-                        {/* Autocomplete Dropdown */}
-                        {showResults && searchResults.length > 0 && (
-                            <div className="absolute top-full left-0 w-full mt-2 glass-card overflow-hidden shadow-2xl z-50 animate-fade-in-up">
-                                <div className="max-h-80 overflow-y-auto">
-                                    {searchResults.map((result) => (
-                                        <button
-                                            key={result.symbol}
-                                            onClick={() => handleSelectResult(result.symbol)}
-                                            className="w-full text-left px-4 py-3 hover:bg-dark-600/50 flex flex-col gap-0.5 transition-colors border-b border-white/5 last:border-0"
-                                        >
-                                            <div className="flex items-center justify-between">
-                                                <span className="font-bold dark:text-white text-gray-900">{result.symbol}</span>
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-500 text-gray-400 font-medium">
-                                                    {result.type || 'Stock'}
-                                                </span>
-                                            </div>
-                                            <span className="text-xs text-gray-400 truncate w-full">{result.description}</span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                    <div className="hidden md:flex flex-1 max-w-xl">
+                        <SearchBox />
                     </div>
 
-                    {/* Right */}
-                    <div className="flex items-center gap-3">
+                    <div className="hidden md:flex items-center gap-2">
                         <ThemeToggle />
                         {user ? (
-                            <div className="hidden md:flex items-center gap-3">
-                                <Link to="/portfolio" className="btn-outline text-sm px-4 py-2">
+                            <>
+                                <Link to="/portfolio" className={navBtnNeutral}>
                                     Portfolio
                                 </Link>
-                                <Link to="/watchlist" className="btn-outline text-sm px-4 py-2">
+                                <Link to="/watchlist" className={navBtnNeutral}>
                                     Watchlist
                                 </Link>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-gradient-accent flex items-center justify-center">
-                                        <User size={16} className="text-white" />
+                                <div className="h-10 flex items-center gap-2 px-3 rounded-xl border border-gray-200 bg-white dark:border-[#253041] dark:bg-[#111723]">
+                                    <div className={`w-7 h-7 rounded-lg border flex items-center justify-center ${accentBlock}`}>
+                                        <User size={13} className="text-white" />
                                     </div>
-                                    <span className="text-sm font-medium dark:text-gray-300 text-gray-700">
+                                    <span className="text-sm font-semibold text-gray-800 dark:text-white">
                                         {user.first_name || user.email?.split('@')[0]}
                                     </span>
                                 </div>
-                                <button onClick={handleLogout} className="p-2 rounded-lg dark:hover:bg-dark-600 hover:bg-gray-100 transition-colors">
-                                    <LogOut size={18} className="dark:text-gray-400 text-gray-600" />
+                                <button
+                                    onClick={handleLogout}
+                                    className="h-10 inline-flex items-center px-4 rounded-xl bg-red-500/10 text-red-500 border border-red-400/20 text-sm font-semibold hover:bg-red-500/15 transition-colors"
+                                >
+                                    <span className="inline-flex items-center gap-2">
+                                        <LogOut size={14} />
+                                        Sign Out
+                                    </span>
                                 </button>
-                            </div>
+                            </>
                         ) : (
-                            <div className="hidden md:flex items-center gap-2">
-                                <Link to="/login" className="btn-outline text-sm px-4 py-2">
+                            <>
+                                <Link to="/login" className={navBtnNeutral}>
                                     Sign In
                                 </Link>
-                                <Link to="/register" className="btn-gradient text-sm px-4 py-2">
-                                    Sign Up
+                                <Link to="/register" className="h-10 inline-flex items-center px-4 rounded-xl bg-[#22324a] text-white border border-[#314766] text-sm font-semibold hover:bg-[#2a3d5a] transition-colors">
+                                    Create Account
                                 </Link>
-                            </div>
+                            </>
                         )}
-                        {/* Mobile menu toggle */}
+                    </div>
+
+                    <div className="md:hidden flex items-center gap-2">
+                        <ThemeToggle />
                         <button
                             onClick={() => setMobileOpen(!mobileOpen)}
-                            className="md:hidden p-2 rounded-lg dark:text-gray-400 text-gray-600"
+                            className="h-10 w-10 inline-flex items-center justify-center rounded-xl border border-gray-200 text-gray-600 dark:text-slate-200 dark:border-[#253041] dark:bg-[#111723]"
                         >
-                            {mobileOpen ? <X size={24} /> : <Menu size={24} />}
+                            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
                         </button>
                     </div>
                 </div>
 
-                {/* Mobile menu */}
                 {mobileOpen && (
-                    <div className="md:hidden pb-4 space-y-3 animate-fade-in-up">
-                        <div className="relative" ref={searchRef}>
-                            <form onSubmit={handleSearch}>
-                                <div className="relative">
-                                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 dark:text-gray-500 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        placeholder="Search stocks..."
-                                        className="input-field pl-10 py-2.5 text-sm"
-                                        onFocus={() => searchQuery.length > 1 && setShowResults(true)}
-                                    />
-                                    {isSearching && (
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                            <div className="w-4 h-4 border-2 border-accent-purple border-t-transparent rounded-full animate-spin"></div>
-                                        </div>
-                                    )}
-                                </div>
-                            </form>
-
-                            {/* Mobile Autocomplete Dropdown */}
-                            {showResults && searchResults.length > 0 && (
-                                <div className="absolute top-full left-0 w-full mt-1 glass-card overflow-hidden shadow-2xl z-50 animate-fade-in-up">
-                                    <div className="max-h-60 overflow-y-auto">
-                                        {searchResults.map((result) => (
-                                            <button
-                                                key={result.symbol}
-                                                onClick={() => handleSelectResult(result.symbol)}
-                                                className="w-full text-left px-4 py-3 hover:bg-dark-600/50 flex flex-col gap-0.5 transition-colors border-b border-white/5 last:border-0"
-                                            >
-                                                <div className="flex items-center justify-between">
-                                                    <span className="font-bold dark:text-white text-gray-900">{result.symbol}</span>
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-dark-500 text-gray-400 font-medium">
-                                                        {result.type || 'Stock'}
-                                                    </span>
-                                                </div>
-                                                <span className="text-xs text-gray-400 truncate w-full">{result.description}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
+                    <div className="md:hidden pb-4 space-y-3">
+                        <SearchBox mobile />
                         {user ? (
                             <div className="space-y-2">
-                                <Link to="/portfolio" className="block w-full text-center btn-outline text-sm py-2"
-                                    onClick={() => setMobileOpen(false)}>
+                                <Link to="/portfolio" className={`block w-full text-center ${navBtnNeutral}`} onClick={() => setMobileOpen(false)}>
                                     Portfolio
                                 </Link>
-                                <Link to="/watchlist" className="block w-full text-center btn-outline text-sm py-2"
-                                    onClick={() => setMobileOpen(false)}>
+                                <Link to="/watchlist" className={`block w-full text-center ${navBtnNeutral}`} onClick={() => setMobileOpen(false)}>
                                     Watchlist
                                 </Link>
-                                <button onClick={handleLogout} className="block w-full text-center btn-gradient text-sm py-2">
+                                <button onClick={handleLogout} className="block w-full text-center h-10 rounded-xl bg-red-500/10 text-red-500 border border-red-400/20 text-sm font-semibold">
                                     Sign Out
                                 </button>
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                <Link to="/login" className="block w-full text-center btn-outline text-sm py-2"
-                                    onClick={() => setMobileOpen(false)}>
+                                <Link to="/login" className={`block w-full text-center ${navBtnNeutral}`} onClick={() => setMobileOpen(false)}>
                                     Sign In
                                 </Link>
-                                <Link to="/register" className="block w-full text-center btn-gradient text-sm py-2"
-                                    onClick={() => setMobileOpen(false)}>
-                                    Sign Up
+                                <Link to="/register" className="block w-full text-center h-10 leading-10 rounded-xl bg-[#22324a] text-white border border-[#314766] text-sm font-semibold" onClick={() => setMobileOpen(false)}>
+                                    Create Account
                                 </Link>
                             </div>
                         )}

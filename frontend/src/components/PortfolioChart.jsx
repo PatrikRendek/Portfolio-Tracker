@@ -20,7 +20,7 @@ export default function PortfolioChart({ data, benchmarkName = 'S&P 500', height
         const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
 
         const isMultiYear = data.length > 365;
-        const labels = sortedData.map(d => {
+        const labels = sortedData.map((d) => {
             const date = new Date(d.date);
             return date.toLocaleDateString('en-US', {
                 month: 'short',
@@ -29,18 +29,18 @@ export default function PortfolioChart({ data, benchmarkName = 'S&P 500', height
             });
         });
 
-        // Absolute dollar values — no normalization artifacts
-        const portfolioVals = sortedData.map(d => d.portfolio_pct ?? 0);
-        const benchmarkVals = sortedData.map(d => d.benchmark_pct ?? null);
+        const portfolioVals = sortedData.map((d) => d.portfolio_pct ?? 0);
+        const benchmarkVals = sortedData.map((d) => d.benchmark_pct ?? null);
 
-        const mainColor = '#00e676';
-        const benchmarkColor = theme === 'dark' ? '#9e9e9e' : '#757575';
         const isDark = theme === 'dark';
+        const portfolioColor = '#22c55e';
+        const benchmarkColor = '#7ba7d9';
+        const textColor = isDark ? '#cbd5e1' : '#334155';
+        const gridColor = isDark ? 'rgba(148, 163, 184, 0.10)' : 'rgba(51, 65, 85, 0.08)';
 
-        // Gradient fill for portfolio
         const gradient = ctx.createLinearGradient(0, 0, 0, height);
-        gradient.addColorStop(0, 'rgba(0, 230, 118, 0.3)');
-        gradient.addColorStop(1, 'rgba(0, 230, 118, 0.0)');
+        gradient.addColorStop(0, 'rgba(34, 197, 94, 0.24)');
+        gradient.addColorStop(1, 'rgba(34, 197, 94, 0)');
 
         const fmtPct = (v) => `${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 
@@ -50,35 +50,33 @@ export default function PortfolioChart({ data, benchmarkName = 'S&P 500', height
                 labels,
                 datasets: [
                     {
-                        label: 'My Portfolio',
+                        label: 'Portfolio',
                         data: portfolioVals,
-                        borderColor: mainColor,
-                        borderWidth: 2,
+                        borderColor: portfolioColor,
+                        borderWidth: 2.5,
                         backgroundColor: gradient,
                         fill: true,
-                        tension: 0.4,
+                        tension: 0.18,
                         pointRadius: 0,
-                        pointHoverRadius: 6,
-                        pointHoverBackgroundColor: mainColor,
-                        pointHoverBorderColor: '#fff',
+                        pointHoverRadius: 4,
+                        pointHoverBackgroundColor: portfolioColor,
+                        pointHoverBorderColor: isDark ? '#020617' : '#ffffff',
                         pointHoverBorderWidth: 2,
-                        yAxisID: 'y',
                     },
                     {
                         label: benchmarkName,
                         data: benchmarkVals,
                         borderColor: benchmarkColor,
                         borderWidth: 2,
-                        borderDash: [5, 5],
+                        borderDash: [4, 6],
                         backgroundColor: 'transparent',
                         fill: false,
-                        tension: 0.4,
+                        tension: 0.18,
                         pointRadius: 0,
-                        pointHoverRadius: 4,
+                        pointHoverRadius: 3,
                         pointHoverBackgroundColor: benchmarkColor,
-                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderColor: isDark ? '#020617' : '#ffffff',
                         pointHoverBorderWidth: 2,
-                        yAxisID: 'y',
                     }
                 ],
             },
@@ -94,24 +92,27 @@ export default function PortfolioChart({ data, benchmarkName = 'S&P 500', height
                         display: true,
                         position: 'top',
                         labels: {
-                            color: isDark ? '#e0e0e0' : '#333',
-                            font: { family: 'Inter', size: 12 },
+                            color: textColor,
+                            font: { family: 'ui-monospace, SFMono-Regular, Menlo, monospace', size: 12, weight: '700' },
                             usePointStyle: true,
-                            boxWidth: 8
+                            pointStyle: 'circle',
+                            boxWidth: 7,
+                            boxHeight: 7,
                         }
                     },
                     tooltip: {
-                        backgroundColor: isDark ? 'rgba(26, 31, 58, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-                        titleColor: isDark ? '#fff' : '#1a1a2e',
-                        bodyColor: isDark ? '#e0e0e0' : '#333',
-                        borderColor: isDark ? 'rgba(124, 77, 255, 0.3)' : 'rgba(0,0,0,0.1)',
+                        backgroundColor: isDark ? 'rgba(10, 14, 19, 0.98)' : 'rgba(255, 255, 255, 0.98)',
+                        titleColor: isDark ? '#f8fafc' : '#0f172a',
+                        bodyColor: textColor,
+                        borderColor: isDark ? '#202832' : '#cbd5e1',
                         borderWidth: 1,
-                        cornerRadius: 12,
-                        padding: 12,
+                        cornerRadius: 10,
+                        padding: 10,
+                        displayColors: true,
                         callbacks: {
-                            label: (ctx) => {
-                                const label = ctx.dataset.label || '';
-                                const val = ctx.parsed.y;
+                            label: (tooltipItem) => {
+                                const label = tooltipItem.dataset.label || '';
+                                const val = tooltipItem.parsed.y;
                                 return `${label}: ${val >= 0 ? '+' : ''}${fmtPct(val)}`;
                             },
                         },
@@ -120,25 +121,26 @@ export default function PortfolioChart({ data, benchmarkName = 'S&P 500', height
                 scales: {
                     x: {
                         grid: {
-                            color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                            color: gridColor,
                             drawBorder: false,
                         },
                         ticks: {
-                            color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+                            color: isDark ? '#64748b' : '#475569',
                             maxRotation: 0,
+                            autoSkip: true,
                             maxTicksLimit: 8,
-                            font: { size: 11, family: 'Inter' },
+                            font: { size: 11, family: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
                         },
                     },
                     y: {
                         grid: {
-                            color: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                            color: gridColor,
                             drawBorder: false,
                         },
                         ticks: {
-                            color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+                            color: isDark ? '#64748b' : '#475569',
                             callback: (v) => `${v > 0 ? '+' : ''}${Number(v).toLocaleString(undefined, { maximumFractionDigits: 0 })}%`,
-                            font: { size: 11, family: 'Inter' },
+                            font: { size: 11, family: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
                         },
                     },
                 },

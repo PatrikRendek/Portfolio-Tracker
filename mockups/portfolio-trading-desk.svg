@@ -1,0 +1,55 @@
+<svg width="1600" height="980" viewBox="0 0 1600 980" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="980" fill="#080A0D"/>
+  <rect x="26" y="24" width="1548" height="932" rx="20" fill="#0D1117" stroke="#1E242D"/>
+  <text x="68" y="74" fill="#F4F7FB" font-family="Consolas, Segoe UI, Arial" font-size="28" font-weight="700">Portfolio / Trading Desk Clean</text>
+  <text x="68" y="102" fill="#7D8796" font-family="Consolas, Segoe UI, Arial" font-size="14">dense data, lower decoration, benchmark delta emphasized</text>
+
+  <rect x="68" y="136" width="1464" height="98" rx="12" fill="#0A0E13" stroke="#202832"/>
+  <text x="98" y="172" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">TOTAL VALUE</text>
+  <text x="98" y="210" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="38" font-weight="700">$26,993.63</text>
+  <text x="408" y="172" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">INVESTED</text>
+  <text x="408" y="210" fill="#DCE5F2" font-family="Consolas, Segoe UI, Arial" font-size="32" font-weight="700">$18,997.84</text>
+  <text x="668" y="172" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">RETURN</text>
+  <text x="668" y="210" fill="#21C97A" font-family="Consolas, Segoe UI, Arial" font-size="32" font-weight="700">+68.91%</text>
+  <text x="912" y="172" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">S&amp;P 500 ALT</text>
+  <text x="912" y="210" fill="#DCE5F2" font-family="Consolas, Segoe UI, Arial" font-size="32" font-weight="700">$24,881.22</text>
+  <text x="1188" y="172" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">DELTA VS BENCH</text>
+  <text x="1188" y="210" fill="#21C97A" font-family="Consolas, Segoe UI, Arial" font-size="32" font-weight="700">+$2,112.41</text>
+
+  <rect x="68" y="266" width="1118" height="398" rx="14" fill="#0A0E13" stroke="#202832"/>
+  <text x="98" y="304" fill="#F4F7FB" font-family="Consolas, Segoe UI, Arial" font-size="22" font-weight="700">ALL-TIME PERFORMANCE</text>
+  <text x="98" y="328" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">time-weighted performance vs benchmark</text>
+  <line x1="104" y1="604" x2="1160" y2="604" stroke="#222B37"/>
+  <line x1="104" y1="538" x2="1160" y2="538" stroke="#161D26"/>
+  <line x1="104" y1="472" x2="1160" y2="472" stroke="#161D26"/>
+  <line x1="104" y1="406" x2="1160" y2="406" stroke="#161D26"/>
+  <path d="M116 600 C180 640,230 560,290 578 S420 586,510 552 S650 544,760 506 S860 488,936 430 S1030 350,1154 382" stroke="#23D18B" stroke-width="3" fill="none"/>
+  <path d="M116 590 C188 565,290 510,396 476 S548 438,664 418 S808 436,908 410 S1036 392,1154 430" stroke="#5FA8FF" stroke-width="2.5" stroke-dasharray="5 7" fill="none"/>
+  <circle cx="720" cy="304" r="5" fill="#23D18B"/>
+  <text x="732" y="309" fill="#EAF2FF" font-family="Consolas, Segoe UI, Arial" font-size="14">PORTFOLIO</text>
+  <circle cx="862" cy="304" r="5" fill="#5FA8FF"/>
+  <text x="874" y="309" fill="#EAF2FF" font-family="Consolas, Segoe UI, Arial" font-size="14">S&amp;P 500</text>
+
+  <rect x="1210" y="266" width="322" height="398" rx="14" fill="#0A0E13" stroke="#202832"/>
+  <text x="1240" y="304" fill="#F4F7FB" font-family="Consolas, Segoe UI, Arial" font-size="22" font-weight="700">RISK SNAPSHOT</text>
+  <text x="1240" y="352" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">BEST</text>
+  <text x="1240" y="382" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="24" font-weight="700">PLTR  +57.37</text>
+  <text x="1240" y="434" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">WORST</text>
+  <text x="1240" y="464" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="24" font-weight="700">MU    -7.06</text>
+  <text x="1240" y="516" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">TOP WEIGHT</text>
+  <text x="1240" y="546" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="24" font-weight="700">PLTR  35.94%</text>
+  <text x="1240" y="598" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">BROKER MIX</text>
+  <text x="1240" y="628" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="24" font-weight="700">eToro  82%</text>
+
+  <rect x="68" y="694" width="1464" height="222" rx="14" fill="#0A0E13" stroke="#202832"/>
+  <text x="98" y="732" fill="#748092" font-family="Consolas, Segoe UI, Arial" font-size="13">TICKER        ALLOC    LAST      AVG      P/L $      MKT VALUE     SHARES</text>
+  <line x1="98" y1="750" x2="1502" y2="750" stroke="#202832"/>
+  <line x1="98" y1="804" x2="1502" y2="804" stroke="#161D26"/>
+  <line x1="98" y1="856" x2="1502" y2="856" stroke="#161D26"/>
+  <text x="98" y="784" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="22" font-weight="700">PLTR</text>
+  <text x="98" y="836" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="22" font-weight="700">MU</text>
+  <text x="98" y="888" fill="#FFFFFF" font-family="Consolas, Segoe UI, Arial" font-size="22" font-weight="700">ABNB</text>
+  <text x="780" y="784" fill="#23D18B" font-family="Consolas, Segoe UI, Arial" font-size="20" font-weight="700">+57.37</text>
+  <text x="780" y="836" fill="#FF6B6B" font-family="Consolas, Segoe UI, Arial" font-size="20" font-weight="700">-7.06</text>
+  <text x="780" y="888" fill="#23D18B" font-family="Consolas, Segoe UI, Arial" font-size="20" font-weight="700">+40.33</text>
+</svg>

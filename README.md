@@ -1,5 +1,7 @@
 # Portfolio-Tracker - Portfolio Dashboard
 
+**Live Demo**: [https://stockpulse-mx3c.onrender.com/](https://stockpulse-mx3c.onrender.com/)
+
 High-performance portfolio tracking application built with a Django/PostgreSQL backend and a React (Vite) frontend. It features real-time historical data, interactive trade visualization, and seamless importing from eToro and XTB.
 
 ## Key Features

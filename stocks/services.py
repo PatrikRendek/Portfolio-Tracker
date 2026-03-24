@@ -6,6 +6,7 @@ import traceback
 import warnings
 from typing import Optional, List, Any
 from datetime import timedelta
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from decimal import Decimal
@@ -26,27 +27,16 @@ def _clean_decimal(val: Any) -> Decimal:
     if pd.isna(val) or val is None:
         return Decimal("0")
     s = str(val).strip().replace("\xa0", "").replace(" ", "")
-    # If there's a comma, it might be a decimal separator or a thousands separator.
-    # Common formats: "1,234.56" or "1.234,56" or "1 234,56"
     if "," in s and "." in s:
-        # Both present: comma or dot is the thousands separator.
-        # Use the last one as the decimal separator.
         dot_idx = s.rfind(".")
         comma_idx = s.rfind(",")
         if dot_idx > comma_idx:
-            # Dot is decimal, remove comma
             s = s.replace(",", "")
         else:
-            # Comma is decimal, remove dot and replace comma with dot
             s = s.replace(".", "").replace(",", ".")
     elif "," in s:
-        # Only comma: probably a decimal separator (European format)
-        # Check if it looks like thousands separator (e.g. "1,000")
-        # But for shares/prices, European brokers use comma as decimal.
-        # Let's assume it's decimal if it's the only separator.
         s = s.replace(",", ".")
 
-    # Final check for multiple dots (thousands separator "1.000.000,00" -> "1000000.00")
     if s.count(".") > 1:
         last_dot = s.rfind(".")
         s = s[:last_dot].replace(".", "") + s[last_dot:]
@@ -57,7 +47,223 @@ def _clean_decimal(val: Any) -> Decimal:
         return Decimal("0")
 
 
-# ─── Auth Services ────────────────────────────────────────────────────────
+def map_xtb_symbol_to_yf(symbol: str) -> str:
+    """Map XTB symbol formats to Yahoo Finance (yfinance) symbols."""
+    if not symbol:
+        return ""
+    s = symbol.upper().strip()
+    # Handle common suffixes
+    if s.endswith(".UK"):
+        return s.replace(".UK", ".L")
+    if s.endswith(".CH"):
+        return s.replace(".CH", ".SW")
+    if s.endswith(".CZ"):
+        return s.replace(".CZ", ".PR")
+    if s.endswith(".US"):
+        return s.replace(".US", "")
+    if s.endswith(".DE"):
+        return s  # .DE is usually fine for YF
+    if s.endswith(".FR"):
+        return s.replace(".FR", ".PA")
+    if s.endswith(".IT"):
+        return s.replace(".IT", ".MI")
+    if s.endswith(".ES"):
+        return s.replace(".ES", ".MC")
+    return s
+
+
+def _invalidate_portfolio_history_cache(user_id: int, benchmark: str = "^GSPC") -> None:
+    """Invalidate all versions and periods of portfolio history cache for a user."""
+    for version in range(10, 31):
+        for period in ["1mo", "3mo", "6mo", "1y", "all", "20y"]:
+            cache.delete(
+                f"portfolio_history_twr_v{version}_{user_id}_{benchmark}_{period}"
+            )
+            cache.delete(f"portfolio_history_{user_id}_{benchmark}_{period}")
+
+
+def _xtb_normalize_col(df: pd.DataFrame, keywords: List[str]) -> Optional[str]:
+    """Find a column name in df that containing any of the keywords (case-insensitive)."""
+    for col in df.columns:
+        c_low = str(col).lower().strip()
+        if any(kw in c_low for kw in keywords):
+            return col
+    return None
+
+
+def _xtb_parse_date(val: Any) -> datetime.datetime:
+    """Robust XTB date parsing."""
+    if pd.isna(val):
+        return timezone.now()
+    try:
+        dt = pd.to_datetime(val)
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt)
+        return dt
+    except Exception:
+        return timezone.now()
+
+
+def parse_xtb_excel(user: User, file_obj) -> dict:
+    """
+    Parses XTB's Excel Export (Open Positions + Cash Operations).
+    Calculates avg prices and total dividends.
+    """
+    try:
+        all_sheets = pd.read_excel(file_obj, sheet_name=None)
+    except Exception as e:
+        raise ValidationError(f"Failed to read Excel file: {str(e)}")
+
+    # 1. Process Open Positions to get currently held shares
+    open_df = None
+    for name, df in all_sheets.items():
+        if any(kw in name.lower() for kw in ["open pos", "otvoren", "otevřen"]):
+            open_df = df
+            break
+
+    if open_df is None:
+        raise ValidationError("Could not find 'Open Positions' sheet in XTB export.")
+
+    sym_col = _xtb_normalize_col(open_df, ["symbol", "instrument"])
+    vol_col = _xtb_normalize_col(open_df, ["volume", "objem", "množstv"])
+    price_col = _xtb_normalize_col(
+        open_df, ["open price", "otváracia cena", "nákupní cena"]
+    )
+    time_col = _xtb_normalize_col(open_df, ["open time", "čas otvorenia", "otevření"])
+
+    if not all([sym_col, vol_col, price_col]):
+        raise ValidationError("Missing required columns in Open Positions sheet.")
+
+    broker_account, _ = BrokerAccount.objects.get_or_create(user=user, broker="xtb")
+    # Clear old data to start fresh
+    PortfolioPosition.objects.filter(broker_account=broker_account).delete()
+    Transaction.objects.filter(broker_account=broker_account).delete()
+
+    active_symbols = {}
+    for _, row in open_df.iterrows():
+        raw_sym = str(row.get(sym_col, ""))
+        if not raw_sym or raw_sym.lower() == "nan":
+            continue
+
+        # Strip suffix for consistency if needed, but here we usually keep it for mapping later
+        # Actually, let's keep it and map it to YF in the selector/detailed view
+        # But for storage, let's keep the raw XTB symbol.
+        vol = float(_clean_decimal(row.get(vol_col)))
+        price = float(_clean_decimal(row.get(price_col)))
+        dt = _xtb_parse_date(row.get(time_col))
+
+        if raw_sym not in active_symbols:
+            active_symbols[raw_sym] = {
+                "qty": 0.0,
+                "total_cost": 0.0,
+                "opened_at": dt,
+                "divs": Decimal("0"),
+            }
+
+        active_symbols[raw_sym]["qty"] += vol
+        active_symbols[raw_sym]["total_cost"] += vol * price
+        if dt < active_symbols[raw_sym]["opened_at"]:
+            active_symbols[raw_sym]["opened_at"] = dt
+
+    # 2. Process Cash Operations for historical context and DIVIDENDS
+    cash_df = None
+    for name, df in all_sheets.items():
+        if any(kw in name.lower() for kw in ["cash oper", "peňažné", "peněžní"]):
+            cash_df = df
+            break
+
+    total_divs_map = {}
+    to_create_txs = []
+
+    if cash_df is not None:
+        type_col = _xtb_normalize_col(cash_df, ["type", "typ"])
+        # Instrument/Symbol might be different here
+        c_sym_col = _xtb_normalize_col(cash_df, ["symbol", "instrument"])
+        amt_col = _xtb_normalize_col(cash_df, ["amount", "suma", "čiastka", "suma"])
+        c_time_col = _xtb_normalize_col(cash_df, ["time", "čas"])
+        comment_col = _xtb_normalize_col(cash_df, ["comment", "komentár", "poznámka"])
+
+        for _, row in cash_df.iterrows():
+            t_val = str(row.get(type_col, "")).upper()
+            sym = str(row.get(c_sym_col, ""))
+            amt = _clean_decimal(row.get(amt_col))
+            dt = _xtb_parse_date(row.get(c_time_col))
+            comment = str(row.get(comment_col, ""))
+
+            is_buy = "PURCHASE" in t_val or "NÁKUP" in t_val or "NAKUP" in t_val
+            is_sell = "SALE" in t_val or "PREDAJ" in t_val or "PRODEJ" in t_val
+            is_div = "DIVIDEN" in t_val or "DIVIDEN" in comment.upper()
+            is_tax = "WITHHOLDING TAX" in t_val or "DAŇ" in t_val
+
+            if not (is_buy or is_sell or is_div or is_tax):
+                continue
+
+            if not sym or sym.lower() == "nan":
+                # Try to extract symbol from comment if missing
+                match = re.search(r"([A-Z0-9\.\-]+)\s+", comment)
+                if match:
+                    sym = match.group(1)
+                else:
+                    continue
+
+            tx_type = (
+                Transaction.TransactionType.BUY
+                if is_buy
+                else Transaction.TransactionType.SELL
+                if is_sell
+                else Transaction.TransactionType.DIVIDEND
+                if is_div
+                else Transaction.TransactionType.TAX
+            )
+
+            # Create Transaction
+            to_create_txs.append(
+                Transaction(
+                    broker_account=broker_account,
+                    symbol=sym,
+                    type=tx_type,
+                    quantity=0,  # XTB doesn't always show qty in cash sheet
+                    price=0,
+                    amount=amt,
+                    date=dt,
+                )
+            )
+
+            # Track dividends for Positions
+            if is_div or is_tax:
+                total_divs_map[sym] = total_divs_map.get(sym, Decimal("0")) + amt
+
+    # 3. Save everything
+    if to_create_txs:
+        Transaction.objects.bulk_create(to_create_txs)
+
+    final_positions = []
+    for sym, data in active_symbols.items():
+        divs = total_divs_map.get(sym, Decimal("0"))
+        final_positions.append(
+            PortfolioPosition(
+                broker_account=broker_account,
+                symbol=sym,
+                quantity=data["qty"],
+                average_open_price=data["total_cost"] / data["qty"]
+                if data["qty"] > 0
+                else 0,
+                total_dividends=divs,
+                opened_at=data["opened_at"],
+            )
+        )
+
+    if final_positions:
+        PortfolioPosition.objects.bulk_create(final_positions)
+
+    broker_account.last_synced_at = timezone.now()
+    broker_account.save()
+    _invalidate_portfolio_history_cache(user.id)
+
+    return {"status": "success", "imported_positions": len(final_positions)}
+
+
+# ─── XTB Services ──────────────────────────────────────────────────────────
 
 
 def user_create(
@@ -134,7 +340,6 @@ class FinnhubClient:
         url = f"{self.base_url}/{endpoint}"
         response = requests.get(url, params=params, timeout=10)
 
-        # Finnhub returns 200 even for errors sometimes, but raise for standard HTTP errors First
         response.raise_for_status()
         data = response.json()
 
@@ -145,33 +350,58 @@ class FinnhubClient:
         return data
 
     def get_eod(self, symbols, date_from=None, date_to=None, limit=100):
-        # Fallback for unused bulk eod method
         return self.get_eod_latest(symbols)
 
     def get_eod_latest(self, symbols):
-        """Simulate MarketStack latest EOD for multiple symbols using Finnhub quotes + profiles for logos."""
+        """Simulate MarketStack latest EOD for multiple symbols using Finnhub quotes + profiles."""
         symbols_list = [s.strip() for s in symbols.split(",") if s.strip()]
-        data = []
-        for sym in symbols_list:
+
+        def fetch_all(sym):
             quote = self._get("quote", {"symbol": sym})
             clean_sym = self._clean_symbol_for_profile(sym)
             profile = self._get("stock/profile2", {"symbol": clean_sym})
-            data.append(
-                {
-                    "symbol": sym,
-                    "name": profile.get("name", sym),
-                    "logo": profile.get("logo", ""),
-                    "close": quote.get("c", 0),
-                    "open": quote.get("o", 0),
-                    "high": quote.get("h", 0),
-                    "low": quote.get("l", 0),
-                    "volume": 0,  # Finnhub quote lacks volume
-                }
-            )
+            return {
+                "symbol": sym,
+                "name": profile.get("name", sym),
+                "logo": profile.get("logo", ""),
+                "close": quote.get("c", 0),
+                "open": quote.get("o", 0),
+                "high": quote.get("h", 0),
+                "low": quote.get("l", 0),
+                "volume": 0,
+            }
+
+        with ThreadPoolExecutor(max_workers=min(len(symbols_list), 10)) as executor:
+            data = list(executor.map(fetch_all, symbols_list))
+
         return {"data": data}
 
+    def get_batch_quotes(self, symbols: List[str]):
+        """Fetch quotes in parallel using Finnhub."""
+
+        def fetch_q(s):
+            try:
+                return s, self._get("quote", {"symbol": s})
+            except Exception:
+                return s, {}
+
+        with ThreadPoolExecutor(max_workers=min(len(symbols), 15)) as executor:
+            return dict(executor.map(fetch_q, symbols))
+
+    def get_batch_profiles(self, symbols: List[str]):
+        """Fetch profiles in parallel using Finnhub."""
+
+        def fetch_p(s):
+            try:
+                clean = self._clean_symbol_for_profile(s)
+                return s, self._get("stock/profile2", {"symbol": clean})
+            except Exception:
+                return s, {}
+
+        with ThreadPoolExecutor(max_workers=min(len(symbols), 15)) as executor:
+            return dict(executor.map(fetch_p, symbols))
+
     def search_tickers(self, query, limit=10):
-        """Map Finnhub search to MarketStack format."""
         res = self._get("search", {"q": query})
         mapped = []
         for item in res.get("result", [])[:limit]:
@@ -185,12 +415,7 @@ class FinnhubClient:
         return {"data": mapped}
 
     def get_ticker_eod(self, symbol, period="1mo"):
-        """Use yfinance for historical chart data as Finnhub limits it."""
-
-        # Strip internal suffixes like .US if present for standard yfinance lookups
         yf_symbol = symbol.split(".")[0] if symbol.endswith(".US") else symbol
-
-        # We need the logo here too
         clean_sym = self._clean_symbol_for_profile(symbol)
         profile = self._get("stock/profile2", {"symbol": clean_sym})
         logo = profile.get("logo", "")
@@ -229,535 +454,19 @@ class FinnhubClient:
                     "volume": int(row["Volume"] if not pd.isna(row["Volume"]) else 0),
                 }
             )
-
-        # Reverse to descending order
         eod_list.reverse()
 
         ticker_name = profile.get("name")
         if not ticker_name:
             try:
-                # Fallback to yfinance info for the name
                 info = ticker.info
                 ticker_name = info.get("longName") or info.get("shortName") or symbol
             except Exception:
                 ticker_name = symbol
 
-        result = {
-            "name": ticker_name,
-            "symbol": symbol,
-            "logo": logo,
-            "eod": eod_list,
-        }
-
+        result = {"name": ticker_name, "symbol": symbol, "logo": logo, "eod": eod_list}
         cache.set(cache_key, result, 43200)
         return result
-
-
-# ─── Portfolio Services ───────────────────────────────────────────────────
-
-
-def map_xtb_symbol_to_yf(symbol: str) -> str:
-    symbol = symbol.strip().upper()
-    if not symbol or symbol == "NAN":
-        return ""
-
-    # Strip any numeric suffixes like _9 (XTB fractional share markers)
-    symbol = re.sub(r"_\d+$", "", symbol)
-
-    # Handle XTB specific mappings
-    if symbol.endswith(".US"):
-        return symbol[:-3]
-    if symbol.endswith(".UK"):
-        return symbol[:-3] + ".L"
-    if symbol.endswith(".FR"):
-        return symbol[:-3] + ".PA"
-    if symbol.endswith(".PL"):
-        return symbol[:-3] + ".WA"
-    if symbol.endswith(".ES"):
-        return symbol[:-3] + ".MC"
-    if symbol.endswith(".NL"):
-        return symbol[:-3] + ".AS"
-    if symbol.endswith(".IT"):
-        return symbol[:-3] + ".MI"
-    if symbol.endswith(".DE"):
-        return symbol  # YFinance supports .DE
-
-    # Common ETF mappings
-    if "CSPX" in symbol:
-        return "CSPX.L"
-    if "SXR8" in symbol:
-        return "SXR8.DE"
-
-    return symbol
-
-
-def _normalize_xtb_text(value: Any) -> str:
-    """Normalize XTB cell text for resilient matching across export variants."""
-    if value is None or pd.isna(value):
-        return ""
-    return str(value).replace("\xa0", " ").strip().lower()
-
-
-def _get_xtb_row_value(row: pd.Series, *candidate_columns: str) -> Any:
-    """Return the first matching value from a row using case-insensitive column lookup."""
-    normalized_map = {_normalize_xtb_text(col): col for col in row.index}
-    for candidate in candidate_columns:
-        matched_col = normalized_map.get(_normalize_xtb_text(candidate))
-        if matched_col is not None:
-            return row.get(matched_col)
-    return None
-
-
-def _is_xtb_dividend_row(tx_type: str, comment: str) -> bool:
-    normalized_type = _normalize_xtb_text(tx_type)
-    normalized_comment = _normalize_xtb_text(comment)
-    return (
-        normalized_type in {"divident", "dividend", "withholding tax"}
-        or "dividend" in normalized_comment
-        or "daň z dividend" in normalized_comment
-    )
-
-
-def _get_xtb_cash_transaction_type(tx_type: str, comment: str, amount: Decimal) -> str:
-    normalized_type = _normalize_xtb_text(tx_type)
-    normalized_comment = _normalize_xtb_text(comment)
-    if normalized_type == "withholding tax" or "daň z dividend" in normalized_comment or amount < 0:
-        return Transaction.TransactionType.TAX
-    return Transaction.TransactionType.DIVIDEND
-
-
-def _invalidate_portfolio_history_cache(user_id: int, benchmark: str = "^GSPC") -> None:
-    for version in range(10, 30):
-        for period in ["1mo", "3mo", "6mo", "1y", "all", "20y"]:
-            cache.delete(f"portfolio_history_twr_v{version}_{user_id}_{benchmark}_{period}")
-            cache.delete(f"portfolio_history_{user_id}_{benchmark}_{period}")
-
-
-# ─── XTB Services ──────────────────────────────────────────────────────────
-
-
-def parse_xtb_excel(user: User, file_obj) -> dict:
-    """
-    Parses XTB's Excel exports by looking for 'Open Positions' or 'Cash Operations'.
-    """
-    all_sheets = pd.read_excel(file_obj, sheet_name=None, header=None)
-    account, _ = BrokerAccount.objects.get_or_create(
-        user=user, broker=BrokerAccount.BrokerChoices.XTB
-    )
-
-    all_txs = []
-    open_positions_data = {}
-    history_positions_data = {}
-    found_open_positions_sheet = False
-
-    for sheet_name, sheet_df in all_sheets.items():
-        for i in range(15):
-            if i >= len(sheet_df):
-                break
-            row_vals = [str(x).lower().strip() for x in sheet_df.iloc[i].values]
-            symbol_keywords = [
-                "symbol",
-                "instrument",
-                "inštrument",
-                "inštrument/pozícia",
-                "instrument/position",
-                "pozícia",
-                "pozicia",
-            ]
-            volume_keywords = ["volume", "objem", "quantity", "units", "shares"]
-            price_keywords = [
-                "price",
-                "open price",
-                "cena",
-                "otváracia cena",
-                "otvaracia cena",
-                "opening price",
-            ]
-            date_keywords = [
-                "time",
-                "dátum",
-                "datum",
-                "open time",
-                "period",
-                "čas",
-                "cas",
-            ]
-
-            has_vol = any(kw in row_vals for kw in volume_keywords)
-            has_sym = any(any(kw in val for kw in symbol_keywords) for val in row_vals)
-
-            closed_keywords = [
-                "close price",
-                "close time",
-                "zisk",
-                "profit",
-                "cena uzatvorenia",
-                "čas uzatvorenia",
-            ]
-            is_closed = any(
-                any(kw in val for kw in closed_keywords) for val in row_vals
-            )
-            sn_lower = sheet_name.lower()
-            is_closed_sheet = any(
-                kw in sn_lower for kw in ["closed", "uzatvoren", "uzavret"]
-            )
-
-            if has_vol and has_sym and not is_closed and not is_closed_sheet:
-                found_open_positions_sheet = True
-                df_clean = sheet_df.iloc[i + 1 :].copy()
-                df_clean.columns = sheet_df.iloc[i].values
-
-                symbol_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower().strip() for kw in symbol_keywords)
-                    ),
-                    None,
-                )
-                vol_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower().strip() for kw in volume_keywords)
-                    ),
-                    None,
-                )
-                price_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower().strip() for kw in price_keywords)
-                    ),
-                    None,
-                )
-                date_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower() for kw in date_keywords)
-                    ),
-                    None,
-                )
-
-                if symbol_col and vol_col:
-                    for _, row in df_clean.iterrows():
-                        sym_raw = str(row.get(symbol_col, "")).strip()
-                        sym = map_xtb_symbol_to_yf(sym_raw)
-                        if not sym or sym.lower() == "nan":
-                            continue
-
-                        try:
-                            v = _clean_decimal(row.get(vol_col))
-                            p = _clean_decimal(row.get(price_col))
-                            dt_val = _etoro_parse_date(row.get(date_col))
-
-                            if v > 0:
-                                if sym not in open_positions_data:
-                                    open_positions_data[sym] = {
-                                        "quantity": Decimal("0"),
-                                        "total_cost": Decimal("0"),
-                                        "date": dt_val,
-                                        "dividends": Decimal(
-                                            "0"
-                                        ),  # Initialize dividends here
-                                    }
-                                open_positions_data[sym]["quantity"] += v
-                                open_positions_data[sym]["total_cost"] += v * p
-                                if dt_val < open_positions_data[sym]["date"]:
-                                    open_positions_data[sym]["date"] = dt_val
-                                all_txs.append(
-                                    Transaction(
-                                        broker_account=account,
-                                        symbol=sym,
-                                        type="buy",
-                                        quantity=v,
-                                        price=p,
-                                        amount=v * p,
-                                        date=dt_val,
-                                    )
-                                )
-                        except Exception:
-                            continue
-                    break
-
-            # --- Cash Operations (History) ---
-            if any(
-                kw in row_vals for kw in ["comment", "komentár", "pozna", "poznámka"]
-            ) and any(kw in row_vals for kw in ["instrument", "inštrument", "symbol"]):
-                df_clean = sheet_df.iloc[i + 1 :].copy()
-                df_clean.columns = sheet_df.iloc[i].values
-                comment_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower() for kw in ["comment", "komentár"])
-                    ),
-                    None,
-                )
-                instr_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(
-                            kw in str(c).lower() for kw in ["instrument", "inštrument"]
-                        )
-                    ),
-                    None,
-                )
-                type_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower() for kw in ["type", "typ"])
-                    ),
-                    None,
-                )
-                if instr_col is None:
-                    instr_col = next(
-                        (
-                            c
-                            for c in df_clean.columns
-                            if "symbol" in str(c).lower()
-                        ),
-                        None,
-                    )
-                time_col = next(
-                    (
-                        c
-                        for c in df_clean.columns
-                        if any(kw in str(c).lower() for kw in ["time", "dátum"])
-                    ),
-                    None,
-                )
-
-                for _, row in df_clean.iterrows():
-                    instr_raw = str(row.get(instr_col, "")).strip()
-                    instr = map_xtb_symbol_to_yf(instr_raw)
-                    comment = str(row.get(comment_col, "")).replace("...", "").strip()
-                    tx_type = str(row.get(type_col, "")).strip()
-                    dt_val = _etoro_parse_date(row.get(time_col))
-                    comment_norm = comment.replace(",", ".")
-                    m_open = re.search(
-                        r"OPEN (BUY|SELL) ([\d\.\s]+) @ ([\d\.\s]+)", comment_norm
-                    )
-                    m_close = re.search(
-                        r"CLOSE (BUY|SELL) ([\d\.\s]+)(?:/[\d\.\s]+)? @ ([\d\.\s]+)",
-                        comment_norm,
-                    )
-
-                    if m_open:
-                        act, vol_s, pr_s = m_open.groups()
-                        try:
-                            v = _clean_decimal(vol_s)
-                            p = _clean_decimal(pr_s)
-                            if instr not in history_positions_data:
-                                history_positions_data[instr] = {
-                                    "vol_acc": Decimal("0"),
-                                    "cost_acc": Decimal("0"),
-                                    "date": dt_val,
-                                    "dividends": Decimal("0"),
-                                }
-                            history_positions_data[instr]["vol_acc"] += (
-                                v if act == "BUY" else -v
-                            )
-                            history_positions_data[instr]["cost_acc"] += (
-                                (v * p) if act == "BUY" else -(v * p)
-                            )
-                            if dt_val < history_positions_data[instr]["date"]:
-                                history_positions_data[instr]["date"] = dt_val
-                            all_txs.append(
-                                Transaction(
-                                    broker_account=account,
-                                    symbol=instr,
-                                    type="buy" if act == "BUY" else "sell",
-                                    quantity=v,
-                                    price=p,
-                                    amount=v * p,
-                                    date=dt_val,
-                                )
-                            )
-                        except Exception:
-                            pass
-                    elif m_close:
-                        act, vol_s, pr_s = m_close.groups()
-                        try:
-                            v = _clean_decimal(vol_s)
-                            p = _clean_decimal(pr_s)
-                            if instr not in history_positions_data:
-                                history_positions_data[instr] = {
-                                    "vol_acc": Decimal("0"),
-                                    "cost_acc": Decimal("0"),
-                                    "date": dt_val,
-                                    "dividends": Decimal("0"),
-                                }
-                            history_positions_data[instr]["vol_acc"] -= (
-                                v if act == "BUY" else -v
-                            )
-                            if dt_val < history_positions_data[instr]["date"]:
-                                history_positions_data[instr]["date"] = dt_val
-                            all_txs.append(
-                                Transaction(
-                                    broker_account=account,
-                                    symbol=instr,
-                                    type="sell" if act == "BUY" else "buy",
-                                    quantity=v,
-                                    price=p,
-                                    amount=v * p,
-                                    date=dt_val,
-                                )
-                            )
-                        except Exception:
-                            pass
-                    elif _is_xtb_dividend_row(tx_type, comment):
-                        try:
-                            sym_instr = instr or map_xtb_symbol_to_yf(
-                                str(row.get(instr_col, ""))
-                            )
-                            if not sym_instr:
-                                continue
-
-                            amt_val = _get_xtb_row_value(
-                                row,
-                                "Amount",
-                                "Net amount",
-                                "Netto",
-                                "Suma",
-                                "Čistá suma",
-                                "Cista suma",
-                            )
-                            amt = _clean_decimal(amt_val)
-
-                            if sym_instr not in history_positions_data:
-                                history_positions_data[sym_instr] = {
-                                    "vol_acc": Decimal("0"),
-                                    "cost_acc": Decimal("0"),
-                                    "date": dt_val,
-                                    "dividends": Decimal("0"),
-                                }
-                            history_positions_data[sym_instr]["dividends"] += amt
-                            all_txs.append(
-                                Transaction(
-                                    broker_account=account,
-                                    symbol=sym_instr,
-                                    type=_get_xtb_cash_transaction_type(tx_type, comment, amt),
-                                    quantity=Decimal("0"),
-                                    price=Decimal("0"),
-                                    amount=amt,
-                                    date=dt_val,
-                                )
-                            )
-                        except Exception:
-                            pass
-                    elif (
-                        "dividend" in comment.lower()
-                        or "daň z dividend" in comment.lower()
-                    ):
-                        try:
-                            sym_instr = instr or map_xtb_symbol_to_yf(
-                                str(row.get(instr_col, ""))
-                            )
-                            if not sym_instr:
-                                continue
-
-                            # Try multiple possible amount columns
-                            amt_val = row.get("Amount")
-                            if amt_val is None:
-                                amt_val = row.get("Net amount")
-                            if amt_val is None:
-                                amt_val = row.get("Netto")
-
-                            amt = _clean_decimal(amt_val)
-
-                            if sym_instr not in history_positions_data:
-                                history_positions_data[sym_instr] = {
-                                    "vol_acc": Decimal("0"),
-                                    "cost_acc": Decimal("0"),
-                                    "date": dt_val,
-                                    "dividends": Decimal("0"),
-                                }
-                            history_positions_data[sym_instr]["dividends"] += amt
-                            all_txs.append(
-                                Transaction(
-                                    broker_account=account,
-                                    symbol=sym_instr,
-                                    type=_get_xtb_cash_transaction_type(tx_type, comment, amt),
-                                    quantity=Decimal("0"),
-                                    price=Decimal("0"),
-                                    amount=amt,
-                                    date=dt_val,
-                                )
-                            )
-                        except Exception:
-                            pass
-                break
-
-    # 2. Final Sanitize & Save
-    if not found_open_positions_sheet:
-        raise ValidationError(
-            "This XTB export does not contain an 'Open Positions' sheet. It only contains 'Cash Operations' or 'Closed Positions', so the import would only capture trades from the selected period rather than the full current portfolio state. Please export a report that includes open positions, or import your complete history from the account's inception."
-        )
-
-    PortfolioPosition.objects.filter(broker_account=account).delete()
-    Transaction.objects.filter(broker_account=account).delete()
-
-    # Determine which data to use for positions
-    positions_data = (
-        open_positions_data if open_positions_data else history_positions_data
-    )
-
-    # Merge dividends from history into positions_data
-    for sym, h_data in history_positions_data.items():
-        if "dividends" in h_data and h_data["dividends"] != 0:
-            if sym in positions_data:
-                positions_data[sym]["dividends"] = (
-                    positions_data[sym].get("dividends", Decimal("0"))
-                    + h_data["dividends"]
-                )
-            else:
-                # If it's not in positions_data but has dividends, create a placeholder entry
-                positions_data[sym] = {
-                    "quantity": Decimal("0"),
-                    "total_cost": Decimal("0"),
-                    "date": h_data["date"],
-                    "dividends": h_data["dividends"],
-                }
-
-    final_positions = []
-    for sym, d in positions_data.items():
-        qty = d.get("quantity") if "quantity" in d else d.get("vol_acc", Decimal("0"))
-
-        if "total_cost" in d:
-            cost = d["total_cost"] / qty if qty != 0 else Decimal("0")
-        else:
-            cost = d.get("cost_acc", Decimal("0")) / qty if qty != 0 else Decimal("0")
-
-        divs = d.get("dividends", Decimal("0"))
-        if (
-            abs(qty) > 0.0001 or abs(divs) > 0.0001
-        ):  # Only create position if there's quantity or dividends
-            final_positions.append(
-                PortfolioPosition(
-                    broker_account=account,
-                    symbol=sym,
-                    quantity=abs(qty),
-                    average_open_price=abs(cost),
-                    total_dividends=divs,
-                    opened_at=d.get("date", timezone.now()),
-                )
-            )
-
-    if final_positions:
-        PortfolioPosition.objects.bulk_create(final_positions)
-    if all_txs:
-        Transaction.objects.bulk_create(all_txs)
-
-    account.last_synced_at = timezone.now()
-    account.save()
-
-    _invalidate_portfolio_history_cache(user.id)
-
-    return {"status": "success", "imported_positions": len(final_positions)}
 
 
 # ─── Parser Helpers ───────────────────────────────────────────────────────

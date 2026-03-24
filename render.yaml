@@ -4,11 +4,11 @@ databases:
     databaseName: stocks_db
     user: stocks_user
 
+services:
   - type: redis
     name: stocks-redis
     plan: free
 
-services:
   - type: web
     name: stockpulse
     runtime: docker

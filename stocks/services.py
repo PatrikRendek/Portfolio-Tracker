@@ -291,6 +291,48 @@ def map_xtb_symbol_to_yf(symbol: str) -> str:
     return symbol
 
 
+def _normalize_xtb_text(value: Any) -> str:
+    """Normalize XTB cell text for resilient matching across export variants."""
+    if value is None or pd.isna(value):
+        return ""
+    return str(value).replace("\xa0", " ").strip().lower()
+
+
+def _get_xtb_row_value(row: pd.Series, *candidate_columns: str) -> Any:
+    """Return the first matching value from a row using case-insensitive column lookup."""
+    normalized_map = {_normalize_xtb_text(col): col for col in row.index}
+    for candidate in candidate_columns:
+        matched_col = normalized_map.get(_normalize_xtb_text(candidate))
+        if matched_col is not None:
+            return row.get(matched_col)
+    return None
+
+
+def _is_xtb_dividend_row(tx_type: str, comment: str) -> bool:
+    normalized_type = _normalize_xtb_text(tx_type)
+    normalized_comment = _normalize_xtb_text(comment)
+    return (
+        normalized_type in {"divident", "dividend", "withholding tax"}
+        or "dividend" in normalized_comment
+        or "daň z dividend" in normalized_comment
+    )
+
+
+def _get_xtb_cash_transaction_type(tx_type: str, comment: str, amount: Decimal) -> str:
+    normalized_type = _normalize_xtb_text(tx_type)
+    normalized_comment = _normalize_xtb_text(comment)
+    if normalized_type == "withholding tax" or "daň z dividend" in normalized_comment or amount < 0:
+        return Transaction.TransactionType.TAX
+    return Transaction.TransactionType.DIVIDEND
+
+
+def _invalidate_portfolio_history_cache(user_id: int, benchmark: str = "^GSPC") -> None:
+    for version in range(10, 30):
+        for period in ["1mo", "3mo", "6mo", "1y", "all", "20y"]:
+            cache.delete(f"portfolio_history_twr_v{version}_{user_id}_{benchmark}_{period}")
+            cache.delete(f"portfolio_history_{user_id}_{benchmark}_{period}")
+
+
 # ─── XTB Services ──────────────────────────────────────────────────────────
 
 
@@ -463,6 +505,23 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     ),
                     None,
                 )
+                type_col = next(
+                    (
+                        c
+                        for c in df_clean.columns
+                        if any(kw in str(c).lower() for kw in ["type", "typ"])
+                    ),
+                    None,
+                )
+                if instr_col is None:
+                    instr_col = next(
+                        (
+                            c
+                            for c in df_clean.columns
+                            if "symbol" in str(c).lower()
+                        ),
+                        None,
+                    )
                 time_col = next(
                     (
                         c
@@ -476,6 +535,7 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     instr_raw = str(row.get(instr_col, "")).strip()
                     instr = map_xtb_symbol_to_yf(instr_raw)
                     comment = str(row.get(comment_col, "")).replace("...", "").strip()
+                    tx_type = str(row.get(type_col, "")).strip()
                     dt_val = _etoro_parse_date(row.get(time_col))
                     comment_norm = comment.replace(",", ".")
                     m_open = re.search(
@@ -549,6 +609,46 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                             )
                         except Exception:
                             pass
+                    elif _is_xtb_dividend_row(tx_type, comment):
+                        try:
+                            sym_instr = instr or map_xtb_symbol_to_yf(
+                                str(row.get(instr_col, ""))
+                            )
+                            if not sym_instr:
+                                continue
+
+                            amt_val = _get_xtb_row_value(
+                                row,
+                                "Amount",
+                                "Net amount",
+                                "Netto",
+                                "Suma",
+                                "Čistá suma",
+                                "Cista suma",
+                            )
+                            amt = _clean_decimal(amt_val)
+
+                            if sym_instr not in history_positions_data:
+                                history_positions_data[sym_instr] = {
+                                    "vol_acc": Decimal("0"),
+                                    "cost_acc": Decimal("0"),
+                                    "date": dt_val,
+                                    "dividends": Decimal("0"),
+                                }
+                            history_positions_data[sym_instr]["dividends"] += amt
+                            all_txs.append(
+                                Transaction(
+                                    broker_account=account,
+                                    symbol=sym_instr,
+                                    type=_get_xtb_cash_transaction_type(tx_type, comment, amt),
+                                    quantity=Decimal("0"),
+                                    price=Decimal("0"),
+                                    amount=amt,
+                                    date=dt_val,
+                                )
+                            )
+                        except Exception:
+                            pass
                     elif (
                         "dividend" in comment.lower()
                         or "daň z dividend" in comment.lower()
@@ -577,6 +677,17 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                                     "dividends": Decimal("0"),
                                 }
                             history_positions_data[sym_instr]["dividends"] += amt
+                            all_txs.append(
+                                Transaction(
+                                    broker_account=account,
+                                    symbol=sym_instr,
+                                    type=_get_xtb_cash_transaction_type(tx_type, comment, amt),
+                                    quantity=Decimal("0"),
+                                    price=Decimal("0"),
+                                    amount=amt,
+                                    date=dt_val,
+                                )
+                            )
                         except Exception:
                             pass
                 break
@@ -644,9 +755,7 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
     account.last_synced_at = timezone.now()
     account.save()
 
-    # Cache invalidation
-    for p in ["1mo", "3mo", "6mo", "1y", "all"]:
-        cache.delete(f"portfolio_history_{user.id}_^GSPC_{p}")
+    _invalidate_portfolio_history_cache(user.id)
 
     return {"status": "success", "imported_positions": len(final_positions)}
 
@@ -799,12 +908,22 @@ def _etoro_process_activity_sheet(
                 # Dividends are usually positive, taxes negative in Amount column
                 raw_positions[symbol]["dividends"] += amount_dec
 
+            tx_type = (
+                Transaction.TransactionType.BUY
+                if is_open
+                else Transaction.TransactionType.SELL
+                if is_close
+                else Transaction.TransactionType.DIVIDEND
+                if is_dividend
+                else Transaction.TransactionType.TAX
+            )
+
             # Create transaction
             to_create_txs.append(
                 Transaction(
                     broker_account=broker_account,
                     symbol=symbol,
-                    type="buy" if is_open else "sell",
+                    type=tx_type,
                     quantity=units,
                     price=px_val,
                     amount=amount_dec,
@@ -943,8 +1062,7 @@ def parse_etoro_excel(user: User, file_obj) -> dict:
                         # Invalidate caches
                         broker_account.last_synced_at = timezone.now()
                         broker_account.save()
-                        for p in ["1mo", "3mo", "6mo", "1y", "20y"]:
-                            cache.delete(f"portfolio_history_{user.id}_^GSPC_{p}")
+                        _invalidate_portfolio_history_cache(user.id)
 
                         return {"status": "success", "imported_positions": count}
 
@@ -968,8 +1086,7 @@ def parse_etoro_excel(user: User, file_obj) -> dict:
                         # Invalidate caches
                         account.last_synced_at = timezone.now()
                         account.save()
-                        for p in ["1mo", "3mo", "6mo", "1y", "20y"]:
-                            cache.delete(f"portfolio_history_{user.id}_^GSPC_{p}")
+                        _invalidate_portfolio_history_cache(user.id)
 
                         return {"status": "success", "imported_positions": count}
 
@@ -1087,7 +1204,7 @@ def get_portfolio_history(user: User, benchmark="^GSPC", period="6mo"):
         if hasattr(actual_start, "tzinfo") and actual_start.tzinfo:
             actual_start = actual_start.replace(tzinfo=None)
 
-        cache_key = f"portfolio_history_twr_v20_{user.id}_{benchmark}_{period}"
+        cache_key = f"portfolio_history_twr_v21_{user.id}_{benchmark}_{period}"
         cached = cache.get(cache_key)
         if cached:
             return cached
@@ -1128,6 +1245,7 @@ def get_portfolio_history(user: User, benchmark="^GSPC", period="6mo"):
         last_prices = {}
         tx_ptr = 0
         total_invested_acc = 0.0
+        income_cash_balance = 0.0
 
         for date in close_data.index:
             e_usd = (
@@ -1157,14 +1275,21 @@ def get_portfolio_history(user: User, benchmark="^GSPC", period="6mo"):
                     else (amt * g_usd if curr == "GBP" else amt)
                 )
 
-                if tx.type.lower() == "buy":
+                tx_type = tx.type.lower()
+
+                if tx_type == Transaction.TransactionType.BUY:
                     holdings[s] = holdings.get(s, 0.0) + q
                     daily_cf[date] += amt_usd
                     total_invested_acc += amt_usd
-                else:
+                elif tx_type == Transaction.TransactionType.SELL:
                     holdings[s] = max(0.0, holdings.get(s, 0.0) - q)
                     daily_cf[date] -= amt_usd
                     total_invested_acc = max(0.0, total_invested_acc - amt_usd)
+                elif tx_type in {
+                    Transaction.TransactionType.DIVIDEND,
+                    Transaction.TransactionType.TAX,
+                }:
+                    income_cash_balance += amt_usd
                 tx_ptr += 1
 
             daily_invested[date] = total_invested_acc
@@ -1201,7 +1326,7 @@ def get_portfolio_history(user: User, benchmark="^GSPC", period="6mo"):
                     else total_invested_acc
                 )
 
-            daily_value[date] = v_usd
+            daily_value[date] = v_usd + income_cash_balance
 
         # 4. TWR Calculation (Still useful for Chart comparison)
         twr_multiplier = pd.Series(1.0, index=daily_value.index)

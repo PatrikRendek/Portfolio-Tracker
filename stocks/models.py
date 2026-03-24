@@ -78,6 +78,8 @@ class Transaction(models.Model):
     class TransactionType(models.TextChoices):
         BUY = "buy", _("Buy")
         SELL = "sell", _("Sell")
+        DIVIDEND = "dividend", _("Dividend")
+        TAX = "tax", _("Tax")
 
     broker_account = models.ForeignKey(
         BrokerAccount,

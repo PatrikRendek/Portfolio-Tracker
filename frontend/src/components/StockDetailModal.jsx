@@ -129,11 +129,7 @@ export default function StockDetailModal({ symbol, name, logo, onClose }) {
                                                 {new Date(tx.date).toLocaleDateString()}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] ${
-                                                    tx.type === 'buy'
-                                                        ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-400/20'
-                                                        : 'bg-red-500/10 text-red-500 border border-red-400/20'
-                                                }`}>
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] ${getTransactionTone(tx.type)}`}>
                                                     {tx.type}
                                                 </span>
                                             </td>
@@ -156,6 +152,16 @@ export default function StockDetailModal({ symbol, name, logo, onClose }) {
             </div>
         </div>
     );
+}
+
+function getTransactionTone(type) {
+    if (type === 'buy' || type === 'dividend') {
+        return 'bg-emerald-500/10 text-emerald-500 border border-emerald-400/20';
+    }
+    if (type === 'tax') {
+        return 'bg-amber-500/10 text-amber-500 border border-amber-400/20';
+    }
+    return 'bg-red-500/10 text-red-500 border border-red-400/20';
 }
 
 function PeriodToggle({ current, onSelect }) {

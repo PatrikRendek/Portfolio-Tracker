@@ -32,7 +32,7 @@ services:
         value: ".onrender.com"
       - key: CSRF_TRUSTED_ORIGINS
         value: "https://*.onrender.com"
-      - key: MARKETSTACK_API_KEY
+      - key: FINNHUB_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
         sync: false

@@ -28,7 +28,7 @@ function SearchBox({
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder="SEARCH STOCKS, ETFS, TICKERS"
                         className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-blue-500 dark:border-[#253041] dark:bg-[#0b1220] dark:text-white dark:placeholder:text-slate-500"
-                        onFocus={() => searchQuery.length > 1 && setShowResults(true)}
+                        onFocus={() => searchQuery.length > 0 && setShowResults(true)}
                     />
                     {isSearching && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -86,7 +86,7 @@ export default function Navbar() {
     useEffect(() => {
         const timer = setTimeout(async () => {
             const query = searchQuery.trim();
-            if (query.length > 1) {
+            if (query.length > 0) {
                 setIsSearching(true);
                 try {
                     const data = await stockApi.search(query);

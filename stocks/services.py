@@ -397,6 +397,9 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                                         "quantity": Decimal("0"),
                                         "total_cost": Decimal("0"),
                                         "date": dt_val,
+                                        "dividends": Decimal(
+                                            "0"
+                                        ),  # Initialize dividends here
                                     }
                                 open_positions_data[sym]["quantity"] += v
                                 open_positions_data[sym]["total_cost"] += v * p
@@ -537,7 +540,16 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                             )
                             if not sym_instr:
                                 continue
-                            amt = _clean_decimal(row.get("Amount"))
+
+                            # Try multiple possible amount columns
+                            amt_val = row.get("Amount")
+                            if amt_val is None:
+                                amt_val = row.get("Net amount")
+                            if amt_val is None:
+                                amt_val = row.get("Netto")
+
+                            amt = _clean_decimal(amt_val)
+
                             if sym_instr not in history_positions_data:
                                 history_positions_data[sym_instr] = {
                                     "vol_acc": Decimal("0"),
@@ -545,10 +557,6 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                                     "date": dt_val,
                                     "dividends": Decimal("0"),
                                 }
-                            if "dividends" not in history_positions_data[sym_instr]:
-                                history_positions_data[sym_instr]["dividends"] = (
-                                    Decimal("0")
-                                )
                             history_positions_data[sym_instr]["dividends"] += amt
                         except Exception:
                             pass
@@ -563,25 +571,49 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
     PortfolioPosition.objects.filter(broker_account=account).delete()
     Transaction.objects.filter(broker_account=account).delete()
 
-    positions_data = open_positions_data or history_positions_data
+    # Determine which data to use for positions
+    positions_data = (
+        open_positions_data if open_positions_data else history_positions_data
+    )
+
+    # Merge dividends from history into positions_data
+    for sym, h_data in history_positions_data.items():
+        if "dividends" in h_data and h_data["dividends"] != 0:
+            if sym in positions_data:
+                positions_data[sym]["dividends"] = (
+                    positions_data[sym].get("dividends", Decimal("0"))
+                    + h_data["dividends"]
+                )
+            else:
+                # If it's not in positions_data but has dividends, create a placeholder entry
+                positions_data[sym] = {
+                    "quantity": Decimal("0"),
+                    "total_cost": Decimal("0"),
+                    "date": h_data["date"],
+                    "dividends": h_data["dividends"],
+                }
+
     final_positions = []
     for sym, d in positions_data.items():
-        if "total_cost" in d:
-            qty = d["quantity"]
-            cost = d["total_cost"] / qty if qty != 0 else 0
-        else:
-            qty = d.get("vol_acc", 0)
-            cost = d.get("cost_acc", 0) / qty if qty != 0 else 0
+        qty = d.get("quantity") if "quantity" in d else d.get("vol_acc", Decimal("0"))
 
-        if abs(qty) > 0.0001:
+        if "total_cost" in d:
+            cost = d["total_cost"] / qty if qty != 0 else Decimal("0")
+        else:
+            cost = d.get("cost_acc", Decimal("0")) / qty if qty != 0 else Decimal("0")
+
+        divs = d.get("dividends", Decimal("0"))
+        if (
+            abs(qty) > 0.0001 or abs(divs) > 0.0001
+        ):  # Only create position if there's quantity or dividends
             final_positions.append(
                 PortfolioPosition(
                     broker_account=account,
                     symbol=sym,
                     quantity=abs(qty),
                     average_open_price=abs(cost),
-                    total_dividends=d.get("dividends", 0.0),
-                    opened_at=d["date"],
+                    total_dividends=divs,
+                    opened_at=d.get("date", timezone.now()),
                 )
             )
 

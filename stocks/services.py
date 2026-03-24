@@ -199,7 +199,16 @@ class FinnhubClient:
         cached = cache.get(cache_key)
         if cached:
             cached["logo"] = logo
-            cached["name"] = profile.get("name", symbol)
+            cached["name"] = (
+                profile.get("name")
+                or (
+                    yf.Ticker(yf_symbol).info.get("longName")
+                    if not profile.get("name")
+                    else None
+                )
+                or cached.get("name")
+                or symbol
+            )
             return cached
 
         ticker = yf.Ticker(yf_symbol)
@@ -224,8 +233,17 @@ class FinnhubClient:
         # Reverse to descending order
         eod_list.reverse()
 
+        ticker_name = profile.get("name")
+        if not ticker_name:
+            try:
+                # Fallback to yfinance info for the name
+                info = ticker.info
+                ticker_name = info.get("longName") or info.get("shortName") or symbol
+            except Exception:
+                ticker_name = symbol
+
         result = {
-            "name": profile.get("name", symbol),
+            "name": ticker_name,
             "symbol": symbol,
             "logo": logo,
             "eod": eod_list,

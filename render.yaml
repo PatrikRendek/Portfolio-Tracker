@@ -1,0 +1,42 @@
+databases:
+  - name: stocks-db
+    plan: free
+    databaseName: stocks_db
+    user: stocks_user
+
+  - type: redis
+    name: stocks-redis
+    plan: free
+
+services:
+  - type: web
+    name: stockpulse
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stocks-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: stocks-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: ALLOWED_HOSTS
+        value: ".onrender.com"
+      - key: CSRF_TRUSTED_ORIGINS
+        value: "https://*.onrender.com"
+      - key: MARKETSTACK_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.0"

@@ -1,4 +1,4 @@
-# StockPulse - Premium Portfolio Dashboard
+# Portfolio-Tracker - Portfolio Dashboard
 
 High-performance portfolio tracking application built with a Django/PostgreSQL backend and a React (Vite) frontend. It features real-time historical data, interactive trade visualization, and seamless importing from eToro and XTB.
 

@@ -5,6 +5,64 @@ import { useAuth } from '../context/AuthContext';
 import ThemeToggle from './ThemeToggle';
 import { stockApi } from '../api/client';
 
+function SearchBox({
+    mobile = false,
+    searchRef,
+    searchQuery,
+    setSearchQuery,
+    searchResults,
+    showResults,
+    setShowResults,
+    isSearching,
+    handleSearch,
+    handleSelectResult
+}) {
+    return (
+        <div className={`relative ${mobile ? '' : 'w-full'}`} ref={searchRef}>
+            <form onSubmit={handleSearch}>
+                <div className="relative">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="SEARCH STOCKS, ETFS, TICKERS"
+                        className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-blue-500 dark:border-[#253041] dark:bg-[#0b1220] dark:text-white dark:placeholder:text-slate-500"
+                        onFocus={() => searchQuery.length > 1 && setShowResults(true)}
+                    />
+                    {isSearching && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                        </div>
+                    )}
+                </div>
+            </form>
+
+            {showResults && searchResults.length > 0 && (
+                <div className="absolute top-full left-0 w-full mt-2 rounded-xl overflow-hidden shadow-2xl z-50 border border-gray-200 bg-white dark:border-[#253041] dark:bg-[#0f1722]">
+                    <div className="max-h-80 overflow-y-auto">
+                        {searchResults.map((result) => (
+                            <button
+                                key={result.symbol}
+                                onClick={() => handleSelectResult(result.symbol)}
+                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#182131] transition-colors border-b border-gray-100 dark:border-[#253041] last:border-0"
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="font-bold text-gray-900 dark:text-white tracking-wide">{result.symbol}</span>
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 font-medium uppercase tracking-[0.15em] dark:bg-[#111723] dark:text-slate-500">
+                                        {result.type || 'Stock'}
+                                    </span>
+                                </div>
+                                <span className="text-xs text-gray-500 dark:text-slate-500 truncate w-full block mt-1">{result.description}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function Navbar() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
@@ -74,50 +132,17 @@ export default function Navbar() {
     const navBtnNeutral = `${navBtn} border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-[#253041] dark:text-slate-200 dark:bg-[#111723] dark:hover:bg-[#182131]`;
     const accentBlock = 'bg-[#22324a] border-[#314766]';
 
-    const SearchBox = ({ mobile = false }) => (
-        <div className={`relative ${mobile ? '' : 'w-full'}`} ref={searchRef}>
-            <form onSubmit={handleSearch}>
-                <div className="relative">
-                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-slate-500" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="SEARCH STOCKS, ETFS, TICKERS"
-                        className="h-10 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-10 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition-all focus:border-blue-500 dark:border-[#253041] dark:bg-[#0b1220] dark:text-white dark:placeholder:text-slate-500"
-                        onFocus={() => searchQuery.length > 1 && setShowResults(true)}
-                    />
-                    {isSearching && (
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                            <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                        </div>
-                    )}
-                </div>
-            </form>
-
-            {showResults && searchResults.length > 0 && (
-                <div className="absolute top-full left-0 w-full mt-2 rounded-xl overflow-hidden shadow-2xl z-50 border border-gray-200 bg-white dark:border-[#253041] dark:bg-[#0f1722]">
-                    <div className="max-h-80 overflow-y-auto">
-                        {searchResults.map((result) => (
-                            <button
-                                key={result.symbol}
-                                onClick={() => handleSelectResult(result.symbol)}
-                                className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-[#182131] transition-colors border-b border-gray-100 dark:border-[#253041] last:border-0"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <span className="font-bold text-gray-900 dark:text-white tracking-wide">{result.symbol}</span>
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 font-medium uppercase tracking-[0.15em] dark:bg-[#111723] dark:text-slate-500">
-                                        {result.type || 'Stock'}
-                                    </span>
-                                </div>
-                                <span className="text-xs text-gray-500 dark:text-slate-500 truncate w-full block mt-1">{result.description}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-        </div>
-    );
+    const searchProps = {
+        searchRef,
+        searchQuery,
+        setSearchQuery,
+        searchResults,
+        showResults,
+        setShowResults,
+        isSearching,
+        handleSearch,
+        handleSelectResult
+    };
 
     return (
         <nav className="sticky top-0 z-50 border-b border-gray-200/80 bg-white/94 backdrop-blur-xl dark:border-[#1f2937] dark:bg-[#111827]/96">
@@ -131,7 +156,7 @@ export default function Navbar() {
                     </Link>
 
                     <div className="hidden md:flex flex-1 max-w-xl">
-                        <SearchBox />
+                        <SearchBox {...searchProps} />
                     </div>
 
                     <div className="hidden md:flex items-center gap-2">
@@ -187,7 +212,7 @@ export default function Navbar() {
 
                 {mobileOpen && (
                     <div className="md:hidden pb-4 space-y-3">
-                        <SearchBox mobile />
+                        <SearchBox {...searchProps} mobile />
                         {user ? (
                             <div className="space-y-2">
                                 <Link to="/portfolio" className={`block w-full text-center ${navBtnNeutral}`} onClick={() => setMobileOpen(false)}>

@@ -224,7 +224,7 @@ class FinnhubClient:
         eod_list.reverse()
 
         result = {
-            "name": symbol,
+            "name": profile.get("name", symbol),
             "symbol": symbol,
             "logo": logo,
             "eod": eod_list,

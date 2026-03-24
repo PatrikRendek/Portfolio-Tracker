@@ -12,6 +12,7 @@ export default function StockDetail() {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [logo, setLogo] = useState('');
+    const [name, setName] = useState('');
     const [inWatchlist, setInWatchlist] = useState(false);
     const [period, setPeriod] = useState('6mo');
     const upperSymbol = symbol?.toUpperCase() || '';
@@ -34,9 +35,11 @@ export default function StockDetail() {
             const response = await stockApi.getDetail(upperSymbol, period);
             setData(response.eod || []);
             setLogo(response.logo || '');
+            setName(response.name || '');
         } catch (err) {
             setData([]);
             setLogo('');
+            setName('');
         } finally {
             setLoading(false);
         }
@@ -93,18 +96,17 @@ export default function StockDetail() {
                     )}
                     <div>
                         <div className="text-[11px] uppercase tracking-[0.24em] text-gray-400 dark:text-slate-500 font-bold mb-2">Stock Detail</div>
-                        <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-50 tracking-wide">{upperSymbol}</h1>
-                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">End-of-day price history and session range.</p>
+                        <h1 className="text-3xl font-bold text-gray-900 dark:text-slate-50 tracking-wide">{name || upperSymbol}</h1>
+                        <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{name ? `${upperSymbol} • ` : ''}End-of-day price history and session range.</p>
                     </div>
                 </div>
 
                 <button
                     onClick={toggleWatchlist}
-                    className={`h-10 inline-flex items-center gap-2 px-4 rounded-xl border text-sm font-semibold transition-colors ${
-                        inWatchlist
+                    className={`h-10 inline-flex items-center gap-2 px-4 rounded-xl border text-sm font-semibold transition-colors ${inWatchlist
                             ? 'bg-emerald-500/10 text-emerald-500 border-emerald-400/20'
                             : 'bg-[#22324a] text-white border-[#314766] hover:bg-[#2a3d5a]'
-                    }`}
+                        }`}
                 >
                     {inWatchlist ? <><Check size={16} /> In Watchlist</> : <><Plus size={16} /> Add to Watchlist</>}
                 </button>
@@ -217,11 +219,10 @@ function PeriodToggle({ current, onSelect, disabled }) {
                     key={p.value}
                     onClick={() => onSelect(p.value)}
                     disabled={disabled}
-                    className={`px-2.5 py-1 text-[11px] rounded-md font-semibold transition-all ${
-                        current === p.value
+                    className={`px-2.5 py-1 text-[11px] rounded-md font-semibold transition-all ${current === p.value
                             ? 'bg-white text-[#22324a] shadow-sm dark:bg-[#1a2330] dark:text-slate-100'
                             : 'text-gray-500 hover:text-gray-900 dark:text-slate-500 dark:hover:text-slate-200'
-                    }`}
+                        }`}
                 >
                     {p.label}
                 </button>

@@ -21,6 +21,42 @@ from rest_framework.exceptions import ValidationError
 from .models import Watchlist, BrokerAccount, PortfolioPosition, Transaction
 
 
+def _clean_decimal(val: Any) -> Decimal:
+    """Robustly convert a value (float, str, etc.) to Decimal."""
+    if pd.isna(val) or val is None:
+        return Decimal("0")
+    s = str(val).strip().replace("\xa0", "").replace(" ", "")
+    # If there's a comma, it might be a decimal separator or a thousands separator.
+    # Common formats: "1,234.56" or "1.234,56" or "1 234,56"
+    if "," in s and "." in s:
+        # Both present: comma or dot is the thousands separator.
+        # Use the last one as the decimal separator.
+        dot_idx = s.rfind(".")
+        comma_idx = s.rfind(",")
+        if dot_idx > comma_idx:
+            # Dot is decimal, remove comma
+            s = s.replace(",", "")
+        else:
+            # Comma is decimal, remove dot and replace comma with dot
+            s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        # Only comma: probably a decimal separator (European format)
+        # Check if it looks like thousands separator (e.g. "1,000")
+        # But for shares/prices, European brokers use comma as decimal.
+        # Let's assume it's decimal if it's the only separator.
+        s = s.replace(",", ".")
+
+    # Final check for multiple dots (thousands separator "1.000.000,00" -> "1000000.00")
+    if s.count(".") > 1:
+        last_dot = s.rfind(".")
+        s = s[:last_dot].replace(".", "") + s[last_dot:]
+
+    try:
+        return Decimal(s)
+    except Exception:
+        return Decimal("0")
+
+
 # ─── Auth Services ────────────────────────────────────────────────────────
 
 
@@ -236,6 +272,9 @@ def map_xtb_symbol_to_yf(symbol: str) -> str:
     return symbol
 
 
+# ─── XTB Services ──────────────────────────────────────────────────────────
+
+
 def parse_xtb_excel(user: User, file_obj) -> dict:
     """
     Parses XTB's Excel exports by looking for 'Open Positions' or 'Cash Operations'.
@@ -348,21 +387,9 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                             continue
 
                         try:
-                            v = Decimal(
-                                str(row.get(vol_col, "0"))
-                                .replace("\xa0", "")
-                                .replace(" ", "")
-                                .replace(",", ".")
-                            )
-                            p = Decimal(
-                                str(row.get(price_col, "0"))
-                                .replace("\xa0", "")
-                                .replace(" ", "")
-                                .replace(",", ".")
-                            )
-                            dt_val = _etoro_parse_date(
-                                row.get(date_col)
-                            )  # reusing eToro date helper or common one
+                            v = _clean_decimal(row.get(vol_col))
+                            p = _clean_decimal(row.get(price_col))
+                            dt_val = _etoro_parse_date(row.get(date_col))
 
                             if v > 0:
                                 if sym not in open_positions_data:
@@ -440,8 +467,8 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     if m_open:
                         act, vol_s, pr_s = m_open.groups()
                         try:
-                            v = Decimal(vol_s.replace(" ", ""))
-                            p = Decimal(pr_s.replace(" ", ""))
+                            v = _clean_decimal(vol_s)
+                            p = _clean_decimal(pr_s)
                             if instr not in history_positions_data:
                                 history_positions_data[instr] = {
                                     "vol_acc": Decimal("0"),
@@ -473,8 +500,8 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                     elif m_close:
                         act, vol_s, pr_s = m_close.groups()
                         try:
-                            v = Decimal(vol_s.replace(" ", ""))
-                            p = Decimal(pr_s.replace(" ", ""))
+                            v = _clean_decimal(vol_s)
+                            p = _clean_decimal(pr_s)
                             if instr not in history_positions_data:
                                 history_positions_data[instr] = {
                                     "vol_acc": Decimal("0"),
@@ -510,12 +537,7 @@ def parse_xtb_excel(user: User, file_obj) -> dict:
                             )
                             if not sym_instr:
                                 continue
-                            amt = Decimal(
-                                str(row.get("Amount", "0"))
-                                .replace("\xa0", "")
-                                .replace(" ", "")
-                                .replace(",", ".")
-                            )
+                            amt = _clean_decimal(row.get("Amount"))
                             if sym_instr not in history_positions_data:
                                 history_positions_data[sym_instr] = {
                                     "vol_acc": Decimal("0"),
@@ -701,10 +723,8 @@ def _etoro_process_activity_sheet(
             symbol = symbol[:-4]
 
         try:
-            u_val = str(row.get(units_col, "0")).replace(",", ".").replace(" ", "")
-            units = abs(Decimal(u_val))
-            a_val = str(row.get(amount_col, "0")).replace(",", ".").replace(" ", "")
-            amount_dec = Decimal(a_val)
+            units = abs(_clean_decimal(row.get(units_col)))
+            amount_dec = _clean_decimal(row.get(amount_col))
             px_val = amount_dec / units if units > 0 else Decimal("0")
             dt_val = _etoro_parse_date(row.get(date_col))
 

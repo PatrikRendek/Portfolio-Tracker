@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY stockproject/ stockproject/
 COPY stocks/ stocks/
 COPY manage.py .
+COPY start.sh .
+RUN chmod +x start.sh
 
 # Copy built frontend into Django static
 COPY --from=frontend-builder /app/frontend/dist /app/staticfiles/frontend
@@ -30,4 +32,4 @@ RUN python manage.py collectstatic --noinput 2>/dev/null || true
 
 EXPOSE 8000
 
-CMD ["gunicorn", "stockproject.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3"]
+CMD ["./start.sh"]

@@ -13,7 +13,7 @@ import Portfolio from './pages/Portfolio';
 
 export default function App() {
     return (
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <BrowserRouter>
             <ThemeProvider>
                 <AuthProvider>
                     <div className="min-h-screen bg-gray-50 transition-colors duration-300 dark:bg-[#050811]">

@@ -199,6 +199,7 @@ class FinnhubClient:
         cached = cache.get(cache_key)
         if cached:
             cached["logo"] = logo
+            cached["name"] = profile.get("name", symbol)
             return cached
 
         ticker = yf.Ticker(yf_symbol)

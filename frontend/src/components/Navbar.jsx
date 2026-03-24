@@ -53,7 +53,7 @@ function SearchBox({
                                         {result.type || 'Stock'}
                                     </span>
                                 </div>
-                                <span className="text-xs text-gray-500 dark:text-slate-500 truncate w-full block mt-1">{result.description}</span>
+                                <span className="text-xs text-gray-500 dark:text-slate-500 truncate w-full block mt-1">{result.name}</span>
                             </button>
                         ))}
                     </div>
